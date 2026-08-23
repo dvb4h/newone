@@ -38,6 +38,11 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "change-this-secret-key-
 
 DATE_FMT = "%Y-%m-%d"
 
+# مدة صلاحية الجلسة على الجهاز الواحد (بالأيام) — تخلي المستخدم مسجّل دخول
+# حتى لو أغلق المتصفح تماماً، بدل ما يُطلب منه الدخول من جديد في كل مرة
+SESSION_LIFETIME_DAYS = 30
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=SESSION_LIFETIME_DAYS)
+
 # بيانات الأدمن الافتراضية (تُستخدم فقط عند إنشاء قاعدة البيانات لأول مرة)
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin123"
@@ -123,6 +128,20 @@ def calc_remaining_days(start_date_str, duration_days):
     return remaining, expiry_date.strftime(DATE_FMT)
 
 
+def cleanup_stale_sessions(db, user_id):
+    """
+    يحذف جلسات هذا المستخدم الأقدم من SESSION_LIFETIME_DAYS.
+    يمنع بقاء 'أجهزة وهمية' تشغل مكاناً بعد فقدان الكوكي (مسح المتصفح، جهاز جديد...)
+    بدون ما يحتاج المستخدم أو الأدمن يتدخل يدوياً.
+    """
+    cutoff = (datetime.now() - timedelta(days=SESSION_LIFETIME_DAYS)).strftime(DATE_FMT)
+    db.execute(
+        "DELETE FROM active_sessions WHERE user_id = ? AND created_at < ?",
+        (user_id, cutoff),
+    )
+    db.commit()
+
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
@@ -204,6 +223,9 @@ def login():
 
         # التحقق من حد الأجهزة المسموح (لا ينطبق على الأدمن)
         if user["role"] != "admin":
+            # تنظيف الجلسات المهجورة (أقدم من SESSION_LIFETIME_DAYS) قبل فحص العدد
+            cleanup_stale_sessions(db, user["id"])
+
             active_count = db.execute(
                 "SELECT COUNT(*) AS c FROM active_sessions WHERE user_id = ?",
                 (user["id"],),
@@ -224,6 +246,8 @@ def login():
             db.commit()
             session["session_token"] = session_token
 
+        # الجلسة تدوم SESSION_LIFETIME_DAYS يوم حتى لو أغلق المستخدم المتصفح تماماً
+        session.permanent = True
         session["user_id"] = user["id"]
         session["username"] = user["username"]
         session["role"] = user["role"]
