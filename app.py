@@ -16,6 +16,7 @@ Flask + SQLite
 import os
 import sqlite3
 import secrets
+import hashlib
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -88,11 +89,18 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
             session_token TEXT UNIQUE NOT NULL,
+            device_fingerprint TEXT,
             created_at TEXT NOT NULL,
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """)
     db.commit()
+
+    # ترحيل بسيط: إضافة عمود device_fingerprint لو القاعدة كانت موجودة من قبل بدونه
+    existing_cols = [row[1] for row in db.execute("PRAGMA table_info(active_sessions)").fetchall()]
+    if "device_fingerprint" not in existing_cols:
+        db.execute("ALTER TABLE active_sessions ADD COLUMN device_fingerprint TEXT")
+        db.commit()
 
     admin = db.execute(
         "SELECT id FROM users WHERE username = ?", (DEFAULT_ADMIN_USERNAME,)
@@ -126,6 +134,20 @@ def calc_remaining_days(start_date_str, duration_days):
     expiry_date = start_date + timedelta(days=duration_days)
     remaining = (expiry_date.date() - datetime.now().date()).days
     return remaining, expiry_date.strftime(DATE_FMT)
+
+
+def get_device_fingerprint():
+    """
+    بصمة تقريبية للجهاز مبنية على نوع المتصفح + عنوان IP.
+    تستخدم لمنع احتساب نفس الجهاز كـ'جهاز جديد' في كل تسجيل دخول متكرر
+    (مثلاً بعد إغلاق مفاجئ للمتصفح وإعادة فتحه أكثر من مرة).
+    ملاحظة: ليست مثالية 100% (تغيّر الـ IP قد يُنشئ بصمة مختلفة)، لكنها تقلل
+    المشكلة بشكل كبير في الحالات الشائعة.
+    """
+    ua = request.headers.get("User-Agent", "")
+    ip = request.remote_addr or ""
+    raw = f"{ua}|{ip}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
 
 def cleanup_stale_sessions(db, user_id):
@@ -226,6 +248,17 @@ def login():
             # تنظيف الجلسات المهجورة (أقدم من SESSION_LIFETIME_DAYS) قبل فحص العدد
             cleanup_stale_sessions(db, user["id"])
 
+            device_fp = get_device_fingerprint()
+
+            # لو نفس الجهاز (نفس المتصفح + نفس IP) عنده جلسة قديمة، نحذفها ونعيد
+            # استخدام مكانها بدل ما نحتسبه "جهاز جديد" (يعالج حالة الإغلاق المفاجئ
+            # وإعادة تسجيل الدخول أكثر من مرة من نفس الجهاز)
+            db.execute(
+                "DELETE FROM active_sessions WHERE user_id = ? AND device_fingerprint = ?",
+                (user["id"], device_fp),
+            )
+            db.commit()
+
             active_count = db.execute(
                 "SELECT COUNT(*) AS c FROM active_sessions WHERE user_id = ?",
                 (user["id"],),
@@ -240,8 +273,8 @@ def login():
 
             session_token = secrets.token_hex(24)
             db.execute(
-                "INSERT INTO active_sessions (user_id, session_token, created_at) VALUES (?, ?, ?)",
-                (user["id"], session_token, datetime.now().strftime(DATE_FMT)),
+                "INSERT INTO active_sessions (user_id, session_token, device_fingerprint, created_at) VALUES (?, ?, ?, ?)",
+                (user["id"], session_token, device_fp, datetime.now().strftime(DATE_FMT)),
             )
             db.commit()
             session["session_token"] = session_token
