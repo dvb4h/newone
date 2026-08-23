@@ -171,15 +171,15 @@
                             <span id="itemConditionBadge" class="px-3 py-1 rounded-xl text-xs font-black bg-emerald-950/60 text-emerald-400 border border-emerald-800/40">جديد (New)</span>
                         </div>
 
-                        <!-- نسب الرسوم والضريبة المستخرجة تلقائياً -->
+                        <!-- نسب الرسوم والضريبة (تُملأ تلقائياً من رمز HS، ويمكن تعديلها يدوياً) -->
                         <div class="grid grid-cols-2 gap-3">
-                            <div class="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-3">
+                            <div class="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-3 input-focus">
                                 <span class="block text-[10px] font-black text-slate-400 mb-1">نسبة الرسوم</span>
-                                <input type="text" id="autoFeePercent" readonly class="w-full bg-transparent font-black text-amber-400 text-lg focus:outline-none" value="15%">
+                                <input type="text" id="autoFeePercent" oninput="performCalculation();" class="w-full bg-transparent font-black text-amber-400 text-lg focus:outline-none" value="15%">
                             </div>
-                            <div class="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-3">
+                            <div class="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-3 input-focus">
                                 <span class="block text-[10px] font-black text-slate-400 mb-1">الضريبة</span>
-                                <input type="text" id="autoTaxPercent" readonly class="w-full bg-transparent font-black text-purple-400 text-lg focus:outline-none" value="3%">
+                                <input type="text" id="autoTaxPercent" oninput="performCalculation();" class="w-full bg-transparent font-black text-purple-400 text-lg focus:outline-none" value="3%">
                             </div>
                         </div>
 
@@ -213,6 +213,17 @@
                             </div>
                         </div>
 
+                        <!-- نسبة التخفيض على قيمة البضاعة -->
+                        <div class="input-focus border border-slate-700/60 rounded-2xl p-4 transition-all bg-slate-900/50">
+                            <label class="block text-[10px] font-black text-emerald-400 mb-1">نسبة التخفيض على قيمة البضاعة (%)</label>
+                            <div class="flex items-center">
+                                <input type="number" id="discountPercent" min="0" max="100" step="0.01" oninput="performCalculation();"
+                                    class="w-full bg-transparent border-none focus:outline-none font-bold text-lg text-white placeholder-slate-600"
+                                    placeholder="مثال: 25">
+                                <span class="font-black text-slate-400 mr-2">%</span>
+                            </div>
+                        </div>
+
                         <!-- مبالغ إضافية اختيارية -->
                         <div class="input-focus border border-slate-700/60 rounded-2xl p-4 transition-all bg-slate-900/50">
                             <label class="block text-[10px] font-black text-amber-400 mb-1">مبالغ إضافية أخرى (دينار عراقي)</label>
@@ -229,6 +240,7 @@
                             إصدار الفاتورة الجمركية
                         </button>
                     </div>
+
 
                     <div class="mt-8 pt-6 border-t border-slate-800 whatsapp-section">
                         <div class="bg-slate-900/50 rounded-3xl p-4 border border-emerald-900/40">
@@ -275,6 +287,10 @@
                     <div class="glass-panel p-6 rounded-[2.5rem] shadow-sm animate-up hover-float" style="animation-delay: 0.1s">
                         <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 border-b border-slate-800 pb-2">البنود التفصيلية للرسوم</h4>
                         <div class="space-y-3">
+                            <div id="discountRow" class="flex justify-between items-center hidden">
+                                <span class="text-sm text-emerald-400 font-semibold">قيمة البضاعة بعد التخفيض:</span>
+                                <span id="valAfterDiscount" class="font-bold text-emerald-400">-</span>
+                            </div>
                             <div class="flex justify-between items-center">
                                 <span class="text-sm text-slate-400">الجمرك (<span id="lblFeeRate">15</span>%):</span>
                                 <span id="valBase" class="font-bold text-white">-</span>
@@ -514,10 +530,26 @@
         }
 
         function formatCurrency(input) {
-            let val = input.value.replace(/,/g, '');
-            if(!isNaN(val) && val !== '') {
-                input.value = Number(val).toLocaleString('en-US');
+            // يحافظ على النقطة العشرية والأرقام بعدها أثناء الكتابة، ويضيف فواصل الآلاف للجزء الصحيح فقط
+            let raw = input.value.replace(/,/g, '');
+            raw = raw.replace(/[^0-9.]/g, '');
+
+            const dotCount = (raw.match(/\./g) || []).length;
+            if (dotCount > 1) {
+                const firstDot = raw.indexOf('.');
+                raw = raw.slice(0, firstDot + 1) + raw.slice(firstDot + 1).replace(/\./g, '');
             }
+
+            if (raw === '') {
+                input.value = '';
+                return;
+            }
+
+            const hasDot = raw.includes('.');
+            const [intPart, decPart] = raw.split('.');
+            const formattedInt = intPart === '' ? '' : Number(intPart).toLocaleString('en-US');
+
+            input.value = hasDot ? (formattedInt + '.' + (decPart || '')) : formattedInt;
         }
 
         function getRaw(id) {
@@ -531,6 +563,22 @@
 
             if(amount <= 0) return;
 
+            // تطبيق نسبة التخفيض على قيمة البضاعة بالدولار قبل احتساب الرسوم والضريبة
+            const discountPercentRaw = parseFloat(document.getElementById('discountPercent').value) || 0;
+            const discountPercent = Math.min(Math.max(discountPercentRaw, 0), 100);
+            const discountAmount = amount * (discountPercent / 100);
+            const amountAfterDiscount = amount - discountAmount;
+
+            const discountRow = document.getElementById('discountRow');
+            if (discountPercent > 0) {
+                discountRow.classList.remove('hidden');
+                document.getElementById('valAfterDiscount').innerText =
+                    '$' + amountAfterDiscount.toLocaleString('en-US', { maximumFractionDigits: 2 }) +
+                    ' (خصم ' + discountPercent + '%)';
+            } else {
+                discountRow.classList.add('hidden');
+            }
+
             const feeStr = document.getElementById('autoFeePercent').value.replace('%', '');
             const taxStr = document.getElementById('autoTaxPercent').value.replace('%', '');
             
@@ -539,9 +587,9 @@
             const exportSupportRate = 0.005; 
             const exchangeRate = 1320; 
 
-            const baseCharge = amount * exchangeRate * feeRate; 
-            const tax = amount * exchangeRate * taxRate; 
-            const exportSupport = amount * exchangeRate * exportSupportRate; 
+            const baseCharge = amountAfterDiscount * exchangeRate * feeRate; 
+            const tax = amountAfterDiscount * exchangeRate * taxRate; 
+            const exportSupport = amountAfterDiscount * exchangeRate * exportSupportRate; 
             const fixedService = 76000; 
             const extra = getRaw('extraFee');
             
