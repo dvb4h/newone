@@ -20,7 +20,7 @@ from functools import wraps
 
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, session, flash, g
+    url_for, session, flash, g, send_from_directory
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -134,6 +134,16 @@ def admin_required(view):
 # ----------------------------------------------------------------------
 # المسارات (Routes)
 # ----------------------------------------------------------------------
+@app.route("/pricing.json")
+def pricing_json():
+    return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing.json")
+
+
+@app.route("/pricing2.json")
+def pricing2_json():
+    return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing2.json")
+
+
 @app.route("/")
 def index():
     if "user_id" in session:
