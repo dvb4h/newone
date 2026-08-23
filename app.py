@@ -246,6 +246,49 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/change_password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    if request.method == "POST":
+        current_password = request.form.get("current_password", "")
+        new_password = request.form.get("new_password", "")
+        confirm_password = request.form.get("confirm_password", "")
+
+        db = get_db()
+        user = db.execute(
+            "SELECT * FROM users WHERE id = ?", (session["user_id"],)
+        ).fetchone()
+
+        if user is None:
+            session.clear()
+            return redirect(url_for("login"))
+
+        if not check_password_hash(user["password_hash"], current_password):
+            flash("كلمة المرور الحالية غير صحيحة.", "error")
+            return redirect(url_for("change_password"))
+
+        if len(new_password) < 4:
+            flash("كلمة المرور الجديدة يجب أن تكون 4 أحرف على الأقل.", "error")
+            return redirect(url_for("change_password"))
+
+        if new_password != confirm_password:
+            flash("كلمة المرور الجديدة وتأكيدها غير متطابقين.", "error")
+            return redirect(url_for("change_password"))
+
+        db.execute(
+            "UPDATE users SET password_hash = ? WHERE id = ?",
+            (generate_password_hash(new_password), user["id"]),
+        )
+        db.commit()
+        flash("تم تغيير كلمة المرور بنجاح.", "success")
+
+        if user["role"] == "admin":
+            return redirect(url_for("admin_dashboard"))
+        return redirect(url_for("dashboard"))
+
+    return render_template("change_password.html")
+
+
 @app.route("/dashboard")
 @login_required
 def dashboard():
