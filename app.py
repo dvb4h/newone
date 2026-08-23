@@ -28,7 +28,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # الإعدادات العامة
 # ----------------------------------------------------------------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE = os.path.join(BASE_DIR, "database.db")
+DATA_DIR = os.environ.get("RENDER_DISK_PATH", BASE_DIR) 
+DATABASE = os.path.join(DATA_DIR, "database.db")
 
 app = Flask(__name__)
 # مهم جداً: غيّر هذا المفتاح السري قبل النشر على الاستضافة
