@@ -101,6 +101,7 @@
                             <th class="p-4 border-b border-slate-800">مدة الاشتراك</th>
                             <th class="p-4 border-b border-slate-800 text-center">الحالة</th>
                             <th class="p-4 border-b border-slate-800 text-center">الأيام المتبقية</th>
+                            <th class="p-4 border-b border-slate-800 text-center">الأجهزة النشطة</th>
                             <th class="p-4 border-b border-slate-800 text-center">إجراءات</th>
                         </tr>
                     </thead>
@@ -130,13 +131,29 @@
                                 {% if u.role == 'admin' %} - {% else %}{{ u.remaining_days }}{% endif %}
                             </td>
                             <td class="p-4 text-center">
+                                {% if u.role == 'admin' %}
+                                    -
+                                {% else %}
+                                    <span class="px-2.5 py-1 rounded-lg text-[10px] font-black {% if u.active_sessions >= 2 %}bg-amber-950 text-amber-400 border border-amber-800/40{% else %}bg-slate-800 text-slate-300 border border-slate-700{% endif %}">
+                                        {{ u.active_sessions }} / 2
+                                    </span>
+                                {% endif %}
+                            </td>
+                            <td class="p-4 text-center">
                                 {% if u.role != 'admin' %}
-                                <div class="flex items-center justify-center gap-2">
+                                <div class="flex items-center justify-center gap-2 flex-wrap">
                                     <form method="POST" action="{{ url_for('toggle_user', user_id=u.id) }}">
                                         <button type="submit" class="bg-slate-800 hover:bg-amber-900/40 text-slate-300 hover:text-amber-400 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-slate-700">
                                             {% if u.is_active %}إيقاف{% else %}تفعيل{% endif %}
                                         </button>
                                     </form>
+                                    {% if u.active_sessions > 0 %}
+                                    <form method="POST" action="{{ url_for('logout_sessions', user_id=u.id) }}">
+                                        <button type="submit" class="bg-blue-950/40 hover:bg-blue-900/50 text-blue-400 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-blue-900/40">
+                                            خروج من كل الأجهزة
+                                        </button>
+                                    </form>
+                                    {% endif %}
                                     <form method="POST" action="{{ url_for('delete_user', user_id=u.id) }}" onsubmit="return confirm('هل أنت متأكد من حذف هذا المستخدم؟');">
                                         <button type="submit" class="bg-red-950/40 hover:bg-red-900/50 text-red-400 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-red-900/40">
                                             حذف

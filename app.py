@@ -15,6 +15,7 @@ Flask + SQLite
 
 import os
 import sqlite3
+import secrets
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -40,6 +41,9 @@ DATE_FMT = "%Y-%m-%d"
 # بيانات الأدمن الافتراضية (تُستخدم فقط عند إنشاء قاعدة البيانات لأول مرة)
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin123"
+
+# الحد الأقصى لعدد الأجهزة/الجلسات المسموحة لكل مشترك بنفس الوقت
+MAX_ACTIVE_SESSIONS = 2
 
 
 # ----------------------------------------------------------------------
@@ -72,6 +76,15 @@ def init_db():
             duration_days INTEGER NOT NULL DEFAULT 30,
             is_active INTEGER NOT NULL DEFAULT 1,
             created_at TEXT NOT NULL
+        )
+    """)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS active_sessions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            session_token TEXT UNIQUE NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """)
     db.commit()
@@ -115,6 +128,17 @@ def login_required(view):
     def wrapped(*args, **kwargs):
         if "user_id" not in session:
             return redirect(url_for("login"))
+        # تأكد أن جلسة هذا الجهاز ما زالت مفعّلة (ما تم إسقاطها من الأدمن أو من جهاز آخر)
+        if session.get("role") != "admin":
+            db = get_db()
+            valid = db.execute(
+                "SELECT id FROM active_sessions WHERE session_token = ?",
+                (session.get("session_token"),),
+            ).fetchone()
+            if valid is None:
+                session.clear()
+                flash("تم تسجيل خروجك من هذا الجهاز. يرجى تسجيل الدخول مجدداً.")
+                return redirect(url_for("login"))
         return view(*args, **kwargs)
     return wrapped
 
@@ -178,6 +202,28 @@ def login():
             flash("انتهت مدة اشتراكك. يرجى التواصل مع الإدارة لتجديد الاشتراك.")
             return redirect(url_for("login"))
 
+        # التحقق من حد الأجهزة المسموح (لا ينطبق على الأدمن)
+        if user["role"] != "admin":
+            active_count = db.execute(
+                "SELECT COUNT(*) AS c FROM active_sessions WHERE user_id = ?",
+                (user["id"],),
+            ).fetchone()["c"]
+
+            if active_count >= MAX_ACTIVE_SESSIONS:
+                flash(
+                    f"وصلت للحد الأقصى ({MAX_ACTIVE_SESSIONS} أجهزة) لتسجيل الدخول بهذا الحساب. "
+                    "يرجى تسجيل الخروج من أحد الأجهزة الأخرى أولاً، أو التواصل مع الإدارة."
+                )
+                return redirect(url_for("login"))
+
+            session_token = secrets.token_hex(24)
+            db.execute(
+                "INSERT INTO active_sessions (user_id, session_token, created_at) VALUES (?, ?, ?)",
+                (user["id"], session_token, datetime.now().strftime(DATE_FMT)),
+            )
+            db.commit()
+            session["session_token"] = session_token
+
         session["user_id"] = user["id"]
         session["username"] = user["username"]
         session["role"] = user["role"]
@@ -191,6 +237,11 @@ def login():
 
 @app.route("/logout")
 def logout():
+    token = session.get("session_token")
+    if token:
+        db = get_db()
+        db.execute("DELETE FROM active_sessions WHERE session_token = ?", (token,))
+        db.commit()
     session.clear()
     return redirect(url_for("login"))
 
@@ -232,6 +283,9 @@ def admin_dashboard():
     users = []
     for row in rows:
         remaining, _ = calc_remaining_days(row["start_date"], row["duration_days"])
+        active_sessions_count = db.execute(
+            "SELECT COUNT(*) AS c FROM active_sessions WHERE user_id = ?", (row["id"],)
+        ).fetchone()["c"]
         users.append({
             "id": row["id"],
             "username": row["username"],
@@ -240,6 +294,7 @@ def admin_dashboard():
             "duration_days": row["duration_days"],
             "is_active": row["is_active"],
             "remaining_days": remaining,
+            "active_sessions": active_sessions_count,
         })
 
     return render_template("admin_dashboard.html", users=users)
@@ -307,6 +362,22 @@ def toggle_user(user_id):
     return redirect(url_for("admin_dashboard"))
 
 
+@app.route("/admin/logout_sessions/<int:user_id>", methods=["POST"])
+@admin_required
+def logout_sessions(user_id):
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+
+    if user is None or user["role"] == "admin":
+        flash("لا يمكن تنفيذ هذا الإجراء.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    db.execute("DELETE FROM active_sessions WHERE user_id = ?", (user_id,))
+    db.commit()
+    flash(f"تم تسجيل خروج '{user['username']}' من كل الأجهزة.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
 @app.route("/admin/delete_user/<int:user_id>", methods=["POST"])
 @admin_required
 def delete_user(user_id):
@@ -317,6 +388,7 @@ def delete_user(user_id):
         flash("لا يمكن حذف حساب الأدمن.", "error")
         return redirect(url_for("admin_dashboard"))
 
+    db.execute("DELETE FROM active_sessions WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM users WHERE id = ?", (user_id,))
     db.commit()
     flash("تم حذف المستخدم.", "success")
