@@ -130,6 +130,10 @@
                         <i class="fa-solid fa-table-list"></i>
                         <span>قسم جدول التعرفة الجمركية</span>
                     </button>
+                    <button onclick="switchTab('protection')" id="tabBtnProtection" class="nav-tab text-slate-300 hover:text-white px-5 py-2.5 rounded-xl font-black text-xs transition-all flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved"></i>
+                        <span>قسم حماية المنتج</span>
+                    </button>
                 </div>
 
                 <div class="flex items-center gap-3">
@@ -376,6 +380,52 @@
             </div>
         </div>
 
+        <div id="protectionSection" class="max-w-6xl mx-auto px-4 py-8 hidden animate-up">
+            <div class="glass-panel p-8 rounded-[2.5rem] shadow-xl">
+                <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-8 pb-6 border-b border-slate-800">
+                    <div>
+                        <h3 class="text-2xl font-black text-white flex items-center gap-3">
+                            <i class="fa-solid fa-shield-halved text-amber-400 text-3xl"></i>
+                            قسم حماية المنتج
+                        </h3>
+                        <p class="text-xs text-slate-400 font-bold mt-1">قائمة السلع الخاضعة لنسبة حماية إضافية</p>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
+                    <div class="md:col-span-8 relative">
+                        <input type="text" id="protectionSearchInput" oninput="searchProtectionTable()" placeholder="ابحث بوصف السلعة أو الرمز المنسق..." 
+                            class="w-full p-4 pr-11 bg-slate-900/50 border border-slate-700/60 rounded-2xl font-bold text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm placeholder-slate-500">
+                        <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
+                    </div>
+                    <div class="md:col-span-4 flex items-center justify-between text-xs text-slate-400 font-bold bg-slate-900/50 px-4 rounded-2xl border border-slate-700/60">
+                        <span>إجمالي البنود: <strong id="totalProtectionCount" class="text-amber-400">0</strong></span>
+                    </div>
+                </div>
+
+                <div class="overflow-x-auto rounded-2xl border border-slate-800/60 shadow-sm bg-slate-900/40">
+                    <table class="w-full text-right border-collapse" id="protectionTable">
+                        <thead>
+                            <tr class="bg-slate-950/80 text-amber-400 text-xs font-black">
+                                <th class="p-4 border-b border-slate-800">#</th>
+                                <th class="p-4 border-b border-slate-800">وصف السلع</th>
+                                <th class="p-4 border-b border-slate-800">الرمز المنسق</th>
+                                <th class="p-4 border-b border-slate-800 text-center">نسبة الحماية</th>
+                            </tr>
+                        </thead>
+                        <tbody id="protectionTableBody" class="divide-y divide-slate-800/60 text-sm font-semibold text-slate-300"></tbody>
+                    </table>
+                </div>
+
+                <!-- أزرار التنقل بين الصفحات -->
+                <div class="flex justify-between items-center mt-6 pt-4 border-t border-slate-800">
+                    <button onclick="changeProtectionPage(-1)" id="prevProtectionPageBtn" class="bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-xl text-xs font-bold transition-all disabled:opacity-50">السابق</button>
+                    <span id="protectionPageIndicator" class="text-xs font-bold text-slate-400">الصفحة 1</span>
+                    <button onclick="changeProtectionPage(1)" id="nextProtectionPageBtn" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-4 py-2 rounded-xl text-xs font-black transition-all">التالي</button>
+                </div>
+            </div>
+        </div>
+
         <button onclick="prepareAndPrint()" class="fab-print no-print bg-amber-500 hover:bg-amber-400 text-slate-950 rounded-full w-16 h-16 shadow-2xl flex items-center justify-center text-2xl border-4 border-slate-900/80" title="طباعة فاتورة">
             <i class="fa-solid fa-print"></i>
         </button>
@@ -435,6 +485,28 @@
             filteredTariffData = pricingData;
             renderTariffTable();
         }
+
+        // دالة جلب بيانات قسم حماية المنتج من ملف pricing3.json
+        let protectionData = [];
+        let filteredProtectionData = [];
+        let protectionCurrentPage = 1;
+        const protectionRowsPerPage = 50;
+
+        async function loadProtectionJsonFile() {
+            try {
+                const response = await fetch('pricing3.json');
+                if (response.ok) {
+                    protectionData = await response.json();
+                } else {
+                    throw new Error('pricing3.json not found');
+                }
+            } catch (error) {
+                console.log('pricing3.json غير متوفر حالياً لقسم حماية المنتج.');
+                protectionData = [];
+            }
+            filteredProtectionData = protectionData;
+            renderProtectionTable();
+        }
         
         let currentPage = 1;
         const rowsPerPage = 50;
@@ -445,25 +517,34 @@
             renderTariffTable();
             loadPricing2File(); // تحميل بيانات pricing2.json عند بدء التشغيل
             loadTariffJsonFile(); // تحميل بيانات جدول التعرفة من pricing.json
+            loadProtectionJsonFile(); // تحميل بيانات قسم حماية المنتج من pricing3.json
         }
         window.addEventListener('DOMContentLoaded', loadAllData);
 
         function switchTab(tab) {
             const calcSec = document.getElementById('calculatorSection');
             const tariffSec = document.getElementById('tariffSection');
+            const protectionSec = document.getElementById('protectionSection');
             const btnCalc = document.getElementById('tabBtnCalc');
             const btnTariff = document.getElementById('tabBtnTariff');
+            const btnProtection = document.getElementById('tabBtnProtection');
 
-            if(tab === 'calculator') {
+            calcSec.classList.add('hidden');
+            tariffSec.classList.add('hidden');
+            protectionSec.classList.add('hidden');
+            btnCalc.classList.remove('active');
+            btnTariff.classList.remove('active');
+            btnProtection.classList.remove('active');
+
+            if (tab === 'calculator') {
                 calcSec.classList.remove('hidden');
-                tariffSec.classList.add('hidden');
                 btnCalc.classList.add('active');
-                btnTariff.classList.remove('active');
-            } else {
-                calcSec.classList.add('hidden');
+            } else if (tab === 'tariff') {
                 tariffSec.classList.remove('hidden');
                 btnTariff.classList.add('active');
-                btnCalc.classList.remove('active');
+            } else if (tab === 'protection') {
+                protectionSec.classList.remove('hidden');
+                btnProtection.classList.add('active');
             }
         }
 
@@ -777,6 +858,66 @@
             });
             currentPage = 1;
             renderTariffTable();
+        }
+
+        function renderProtectionTable() {
+            const tbody = document.getElementById('protectionTableBody');
+            document.getElementById('totalProtectionCount').innerText = filteredProtectionData.length;
+
+            if (filteredProtectionData.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center p-8 text-slate-400 font-bold">لا توجد بيانات مطابقة</td></tr>`;
+                document.getElementById('protectionPageIndicator').innerText = `الصفحة 0 من 0`;
+                return;
+            }
+
+            const totalPages = Math.ceil(filteredProtectionData.length / protectionRowsPerPage);
+            if (protectionCurrentPage > totalPages) protectionCurrentPage = totalPages;
+            if (protectionCurrentPage < 1) protectionCurrentPage = 1;
+
+            const start = (protectionCurrentPage - 1) * protectionRowsPerPage;
+            const end = start + protectionRowsPerPage;
+            const paginatedItems = filteredProtectionData.slice(start, end);
+
+            let html = '';
+            paginatedItems.forEach((row, index) => {
+                const num = (row['ت'] || row.id || (start + index + 1)).toString().trim();
+                const desc = (row['وصف السلع'] || row.description || '').trim() || '-';
+                const hs = (row['الرمز المنسق'] || row['HS CODE'] || row.hsCode || '').toString().trim() || '-';
+                const protection = (row['نسبة الحماية'] || row.protectionRate || '').toString().trim() || '-';
+
+                html += `
+                    <tr class="${index % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-900/60'} hover:bg-amber-950/30 transition-colors">
+                        <td class="p-4 text-xs font-bold text-slate-400">${num}</td>
+                        <td class="p-4 font-bold text-white">${desc}</td>
+                        <td class="p-4 font-black text-amber-400">${hs}</td>
+                        <td class="p-4 text-center">
+                            <span class="px-2.5 py-1 rounded-lg text-[11px] font-black bg-red-950 text-red-400 border border-red-800/40">${protection}</span>
+                        </td>
+                    </tr>
+                `;
+            });
+            tbody.innerHTML = html;
+
+            document.getElementById('protectionPageIndicator').innerText = `الصفحة ${protectionCurrentPage} من ${totalPages}`;
+            document.getElementById('prevProtectionPageBtn').disabled = protectionCurrentPage === 1;
+            document.getElementById('nextProtectionPageBtn').disabled = protectionCurrentPage === totalPages;
+        }
+
+        function changeProtectionPage(direction) {
+            protectionCurrentPage += direction;
+            renderProtectionTable();
+            document.getElementById('protectionSection').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        function searchProtectionTable() {
+            const query = document.getElementById('protectionSearchInput').value.toLowerCase();
+            filteredProtectionData = protectionData.filter(row => {
+                const desc = (row['وصف السلع'] || row.description || '').toLowerCase();
+                const hs = (row['الرمز المنسق'] || row['HS CODE'] || row.hsCode || '').toString().toLowerCase();
+                return desc.includes(query) || hs.includes(query);
+            });
+            protectionCurrentPage = 1;
+            renderProtectionTable();
         }
 
         function prepareAndPrint() {
