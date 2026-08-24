@@ -22,7 +22,7 @@ from functools import wraps
 
 from flask import (
     Flask, render_template, request, redirect,
-    url_for, session, flash, g, send_from_directory
+    url_for, session, flash, g, send_from_directory, jsonify
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -91,6 +91,25 @@ def init_db():
             session_token TEXT UNIQUE NOT NULL,
             device_fingerprint TEXT,
             created_at TEXT NOT NULL,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS calculation_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,
+            created_at TEXT NOT NULL
+        )
+    """)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS favorites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            hs_code TEXT NOT NULL,
+            description TEXT,
+            price TEXT,
+            added_at TEXT NOT NULL,
+            UNIQUE(user_id, hs_code),
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """)
@@ -378,6 +397,66 @@ def dashboard():
     )
 
 
+@app.route("/api/log_calculation", methods=["POST"])
+@login_required
+def log_calculation():
+    """يسجّل عملية حساب تعرفة لأغراض إحصائيات الأدمن (لا يؤثر على المستخدم إطلاقاً)."""
+    db = get_db()
+    db.execute(
+        "INSERT INTO calculation_log (user_id, created_at) VALUES (?, ?)",
+        (session.get("user_id"), datetime.now().strftime(DATE_FMT)),
+    )
+    db.commit()
+    return {"ok": True}
+
+
+@app.route("/api/favorites", methods=["GET"])
+@login_required
+def get_favorites():
+    """يرجّع قائمة البنود المفضلة للمستخدم الحالي (أدمن أو مشترك) بصيغة JSON."""
+    db = get_db()
+    rows = db.execute(
+        "SELECT hs_code, description, price FROM favorites WHERE user_id = ? ORDER BY added_at DESC",
+        (session["user_id"],),
+    ).fetchall()
+    favorites = [
+        {"hs_code": r["hs_code"], "description": r["description"], "price": r["price"]}
+        for r in rows
+    ]
+    return jsonify(favorites)
+
+
+@app.route("/api/favorites/toggle", methods=["POST"])
+@login_required
+def toggle_favorite():
+    """يضيف أو يحذف صنف من قائمة المفضلة (نفس الطلب يبدّل الحالة تلقائياً)."""
+    data = request.get_json(silent=True) or {}
+    hs_code = (data.get("hs_code") or "").strip()
+    description = (data.get("description") or "").strip()
+    price = (data.get("price") or "").strip()
+
+    if not hs_code:
+        return jsonify({"error": "hs_code مطلوب"}), 400
+
+    db = get_db()
+    existing = db.execute(
+        "SELECT id FROM favorites WHERE user_id = ? AND hs_code = ?",
+        (session["user_id"], hs_code),
+    ).fetchone()
+
+    if existing:
+        db.execute("DELETE FROM favorites WHERE id = ?", (existing["id"],))
+        db.commit()
+        return jsonify({"status": "removed", "hs_code": hs_code})
+
+    db.execute(
+        "INSERT INTO favorites (user_id, hs_code, description, price, added_at) VALUES (?, ?, ?, ?, ?)",
+        (session["user_id"], hs_code, description, price, datetime.now().strftime(DATE_FMT)),
+    )
+    db.commit()
+    return jsonify({"status": "added", "hs_code": hs_code})
+
+
 # ---------------------------- لوحة الأدمن ----------------------------
 @app.route("/admin")
 @admin_required
@@ -386,6 +465,11 @@ def admin_dashboard():
     rows = db.execute("SELECT * FROM users ORDER BY role DESC, id DESC").fetchall()
 
     users = []
+    subscribers_count = 0
+    active_count = 0
+    expired_count = 0
+    expiring_soon_count = 0
+
     for row in rows:
         remaining, _ = calc_remaining_days(row["start_date"], row["duration_days"])
         active_sessions_count = db.execute(
@@ -402,7 +486,33 @@ def admin_dashboard():
             "active_sessions": active_sessions_count,
         })
 
-    return render_template("admin_dashboard.html", users=users)
+        if row["role"] != "admin":
+            subscribers_count += 1
+            if remaining < 0:
+                expired_count += 1
+            elif row["is_active"]:
+                active_count += 1
+                if remaining <= 7:
+                    expiring_soon_count += 1
+
+    today_str = datetime.now().strftime(DATE_FMT)
+    total_calculations = db.execute(
+        "SELECT COUNT(*) AS c FROM calculation_log"
+    ).fetchone()["c"]
+    calculations_today = db.execute(
+        "SELECT COUNT(*) AS c FROM calculation_log WHERE created_at = ?", (today_str,)
+    ).fetchone()["c"]
+
+    stats = {
+        "subscribers_count": subscribers_count,
+        "active_count": active_count,
+        "expired_count": expired_count,
+        "expiring_soon_count": expiring_soon_count,
+        "total_calculations": total_calculations,
+        "calculations_today": calculations_today,
+    }
+
+    return render_template("admin_dashboard.html", users=users, stats=stats)
 
 
 @app.route("/admin/add_user", methods=["POST"])
@@ -464,6 +574,39 @@ def toggle_user(user_id):
     db.execute("UPDATE users SET is_active = ? WHERE id = ?", (new_status, user_id))
     db.commit()
     flash("تم تحديث حالة المستخدم.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/renew_user/<int:user_id>", methods=["POST"])
+@admin_required
+def renew_user(user_id):
+    """
+    يجدد اشتراك المشترك: يعيد ضبط تاريخ البداية لليوم + المدة الجديدة المحددة،
+    ويعيد تفعيل الحساب تلقائياً لو كان موقوفاً — بدون حذف الحساب أو فقدان
+    اسم المستخدم/كلمة المرور.
+    """
+    db = get_db()
+    user = db.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
+
+    if user is None or user["role"] == "admin":
+        flash("لا يمكن تنفيذ هذا الإجراء.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    duration_days = request.form.get("renew_duration_days", "30")
+    try:
+        duration_days = int(duration_days)
+        if duration_days < 1:
+            raise ValueError
+    except ValueError:
+        flash("مدة التجديد يجب أن تكون رقماً صحيحاً أكبر من صفر.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    db.execute(
+        "UPDATE users SET start_date = ?, duration_days = ?, is_active = 1 WHERE id = ?",
+        (datetime.now().strftime(DATE_FMT), duration_days, user_id),
+    )
+    db.commit()
+    flash(f"تم تجديد اشتراك '{user['username']}' لمدة {duration_days} يوم بدءاً من اليوم.", "success")
     return redirect(url_for("admin_dashboard"))
 
 

@@ -56,6 +56,34 @@
             {% endif %}
         {% endwith %}
 
+        <!-- لوحة الإحصائيات -->
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-8">
+            <div class="glass-panel p-4 rounded-2xl text-center">
+                <div class="text-2xl font-black text-white">{{ stats.subscribers_count }}</div>
+                <div class="text-[10px] font-bold text-slate-400 mt-1">إجمالي المشتركين</div>
+            </div>
+            <div class="glass-panel p-4 rounded-2xl text-center">
+                <div class="text-2xl font-black text-emerald-400">{{ stats.active_count }}</div>
+                <div class="text-[10px] font-bold text-slate-400 mt-1">اشتراكات فعّالة</div>
+            </div>
+            <div class="glass-panel p-4 rounded-2xl text-center">
+                <div class="text-2xl font-black text-red-400">{{ stats.expired_count }}</div>
+                <div class="text-[10px] font-bold text-slate-400 mt-1">اشتراكات منتهية</div>
+            </div>
+            <div class="glass-panel p-4 rounded-2xl text-center">
+                <div class="text-2xl font-black text-amber-400">{{ stats.expiring_soon_count }}</div>
+                <div class="text-[10px] font-bold text-slate-400 mt-1">تنتهي خلال 7 أيام</div>
+            </div>
+            <div class="glass-panel p-4 rounded-2xl text-center">
+                <div class="text-2xl font-black text-blue-400">{{ stats.total_calculations }}</div>
+                <div class="text-[10px] font-bold text-slate-400 mt-1">إجمالي عمليات الحساب</div>
+            </div>
+            <div class="glass-panel p-4 rounded-2xl text-center">
+                <div class="text-2xl font-black text-purple-400">{{ stats.calculations_today }}</div>
+                <div class="text-[10px] font-bold text-slate-400 mt-1">عمليات حساب اليوم</div>
+            </div>
+        </div>
+
         <!-- نموذج إضافة مستخدم جديد -->
         <div class="glass-panel p-6 md:p-8 rounded-[2rem] shadow-xl mb-8">
             <h3 class="text-lg font-black text-white mb-5 flex items-center gap-2">
@@ -145,6 +173,13 @@
                             <td class="p-4 text-center">
                                 {% if u.role != 'admin' %}
                                 <div class="flex items-center justify-center gap-2 flex-wrap">
+                                    <form method="POST" action="{{ url_for('renew_user', user_id=u.id) }}" class="flex items-center gap-1">
+                                        <input type="number" name="renew_duration_days" min="1" value="30" title="عدد أيام التجديد"
+                                            class="w-14 px-1.5 py-1.5 bg-slate-900 border border-emerald-800/40 rounded-lg text-[11px] text-white text-center focus:outline-none focus:border-emerald-500">
+                                        <button type="submit" class="bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-400 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-emerald-900/40 whitespace-nowrap">
+                                            تجديد
+                                        </button>
+                                    </form>
                                     <form method="POST" action="{{ url_for('toggle_user', user_id=u.id) }}">
                                         <button type="submit" class="bg-slate-800 hover:bg-amber-900/40 text-slate-300 hover:text-amber-400 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-slate-700">
                                             {% if u.is_active %}إيقاف{% else %}تفعيل{% endif %}

@@ -82,7 +82,7 @@
         @media print {
             @page { size: A4 portrait; margin: 10mm; }
             body { background-color: #ffffff !important; color: #000000 !important; }
-            .no-print, #loginScreen, nav, .fab-print, #costChartCard, .whatsapp-section, #tariffSection { display: none !important; }
+            .no-print, #loginScreen, nav, .fab-print, #costChartCard, .whatsapp-section, #tariffSection, #protectionSection { display: none !important; }
             .invoice-print-only { display: block !important; }
             #mainApp { display: block !important; }
             #resultsSection { opacity: 1 !important; filter: none !important; pointer-events: auto !important; width: 100% !important; }
@@ -278,6 +278,26 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- تفاصيل الصنف -->
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5 text-xs">
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                            <span class="block text-slate-500 font-bold mb-1">رمز HS CODE</span>
+                            <span id="printHsCode" class="font-black text-slate-900">-</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                            <span class="block text-slate-500 font-bold mb-1">حالة البضاعة</span>
+                            <span id="printCondition" class="font-black text-slate-900">-</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                            <span class="block text-slate-500 font-bold mb-1">الكمية / الوحدة</span>
+                            <span id="printQtyUnit" class="font-black text-slate-900">-</span>
+                        </div>
+                        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                            <span class="block text-slate-500 font-bold mb-1">قيمة البضاعة ($)</span>
+                            <span id="printAmountUsd" class="font-black text-slate-900">-</span>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="result-card p-1 rounded-[3rem] shadow-2xl animate-up hover-float" style="background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(16px);">
@@ -325,6 +345,14 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- تذييل رسمي يظهر فقط عند الطباعة -->
+                <div class="invoice-print-only invoice-box-print" style="margin-top: 15px;">
+                    <div class="border-t-2 border-slate-900 pt-3 flex justify-between items-center text-[10px] text-slate-500 font-bold">
+                        <span>للاستفسار: 07731364730 (واتساب)</span>
+                        <span>الرموز المنسقة العالمية (H.S Code) رموز معتمدة دولياً وفق اتفاقية منظمة الجمارك العالمية، وغير تابعة لأي جهة حكومية محلية.</span>
+                    </div>
+                </div>
             </section>
         </div>
 
@@ -342,12 +370,18 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
-                    <div class="md:col-span-8 relative">
+                    <div class="md:col-span-6 relative">
                         <input type="text" id="tariffSearchInput" oninput="searchTariffTable()" placeholder="ابحث بررمز HS CODE، الوصف، أو المنشأ..." 
                             class="w-full p-4 pr-11 bg-slate-900/50 border border-slate-700/60 rounded-2xl font-bold text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm placeholder-slate-500">
                         <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
                     </div>
-                    <div class="md:col-span-4 flex items-center justify-between text-xs text-slate-400 font-bold bg-slate-900/50 px-4 rounded-2xl border border-slate-700/60">
+                    <div class="md:col-span-3">
+                        <button id="favToggleBtn" onclick="toggleFavoritesOnlyView()" class="w-full h-full flex items-center justify-center gap-2 bg-slate-900/50 hover:bg-amber-950/40 border border-slate-700/60 rounded-2xl text-xs font-black text-slate-300 hover:text-amber-400 transition-all px-4 py-3">
+                            <i class="fa-solid fa-star"></i>
+                            <span>عرض المفضلة فقط (<span id="favCount">0</span>)</span>
+                        </button>
+                    </div>
+                    <div class="md:col-span-3 flex items-center justify-between text-xs text-slate-400 font-bold bg-slate-900/50 px-4 rounded-2xl border border-slate-700/60">
                         <span>إجمالي البنود: <strong id="totalItemsCount" class="text-amber-400">0</strong></span>
                     </div>
                 </div>
@@ -356,6 +390,7 @@
                     <table class="w-full text-right border-collapse" id="tariffTable">
                         <thead>
                             <tr class="bg-slate-950/80 text-amber-400 text-xs font-black">
+                                <th class="p-4 border-b border-slate-800 text-center">⭐</th>
                                 <th class="p-4 border-b border-slate-800">HS CODE</th>
                                 <th class="p-4 border-b border-slate-800">T.S.C CODE</th>
                                 <th class="p-4 border-b border-slate-800">المنشأ</th>
@@ -518,6 +553,7 @@
             loadPricing2File(); // تحميل بيانات pricing2.json عند بدء التشغيل
             loadTariffJsonFile(); // تحميل بيانات جدول التعرفة من pricing.json
             loadProtectionJsonFile(); // تحميل بيانات قسم حماية المنتج من pricing3.json
+            loadFavorites().then(renderTariffTable); // تحميل المفضلة ثم إعادة رسم الجدول لإظهار النجوم
         }
         window.addEventListener('DOMContentLoaded', loadAllData);
 
@@ -695,6 +731,9 @@
             chartCard.classList.remove('chart-animated-glow');
             void chartCard.offsetWidth; // إعادة تشغيل الـ Animation
             chartCard.classList.add('chart-animated-glow');
+
+            // تسجيل عملية الحساب لأغراض إحصائيات الأدمن (لا يؤثر على المستخدم، ولا ننتظر الرد)
+            fetch('/api/log_calculation', { method: 'POST' }).catch(() => {});
         }
 
         function updateChart(base, tax, support, others) {
@@ -737,7 +776,7 @@
             document.getElementById('totalItemsCount').innerText = filteredTariffData.length;
             
             if(filteredTariffData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="9" class="text-center p-8 text-slate-400 font-bold">لا توجد بيانات مطابقة</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" class="text-center p-8 text-slate-400 font-bold">لا توجد بيانات مطابقة</td></tr>`;
                 document.getElementById('pageIndicator').innerText = `الصفحة 0 من 0`;
                 return;
             }
@@ -766,8 +805,16 @@
                     ? `<span class="px-2.5 py-1 rounded-lg text-[10px] font-black bg-amber-950 text-amber-400 border border-amber-800/40">مستخدم (Used)</span>` 
                     : `<span class="px-2.5 py-1 rounded-lg text-[10px] font-black bg-emerald-950 text-emerald-400 border border-emerald-800/40">جديد (New)</span>`;
 
+                const isFav = favoriteHsCodes.has(hs);
+                const starIcon = isFav ? 'fa-solid fa-star text-amber-400' : 'fa-regular fa-star text-slate-500';
+
                 html += `
                     <tr class="${index % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-900/60'} hover:bg-amber-950/30 transition-colors">
+                        <td class="p-4 text-center">
+                            <button onclick="toggleFavorite('${hs}', '${desc.replace(/'/g, "\\'")}', '${rawPrice}')" class="text-lg hover:scale-125 transition-transform" title="إضافة/إزالة من المفضلة">
+                                <i class="${starIcon}"></i>
+                            </button>
+                        </td>
                         <td class="p-4 font-black text-amber-400">${hs}</td>
                         <td class="p-4 text-xs font-bold text-blue-400">${tsc}</td>
                         <td class="p-4 text-xs font-bold text-slate-300">${origin}</td>
@@ -790,6 +837,61 @@
             document.getElementById('pageIndicator').innerText = `الصفحة ${currentPage} من ${totalPages}`;
             document.getElementById('prevPageBtn').disabled = currentPage === 1;
             document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
+        }
+
+        // ---------------------- نظام البنود المفضلة ----------------------
+        let favoriteHsCodes = new Set();
+        let favoritesOnlyView = false;
+
+        async function loadFavorites() {
+            try {
+                const response = await fetch('/api/favorites');
+                if (response.ok) {
+                    const list = await response.json();
+                    favoriteHsCodes = new Set(list.map(f => f.hs_code));
+                    document.getElementById('favCount').innerText = favoriteHsCodes.size;
+                }
+            } catch (error) {
+                console.log('تعذر تحميل المفضلة حالياً.');
+            }
+        }
+
+        async function toggleFavorite(hsCode, description, price) {
+            try {
+                const response = await fetch('/api/favorites/toggle', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ hs_code: hsCode, description: description, price: price })
+                });
+                if (!response.ok) return;
+                const result = await response.json();
+
+                if (result.status === 'added') {
+                    favoriteHsCodes.add(hsCode);
+                } else {
+                    favoriteHsCodes.delete(hsCode);
+                }
+                document.getElementById('favCount').innerText = favoriteHsCodes.size;
+
+                if (favoritesOnlyView) {
+                    searchTariffTable();
+                } else {
+                    renderTariffTable();
+                }
+            } catch (error) {
+                console.log('تعذر تحديث المفضلة، حاول مجدداً.');
+            }
+        }
+
+        function toggleFavoritesOnlyView() {
+            favoritesOnlyView = !favoritesOnlyView;
+            const btn = document.getElementById('favToggleBtn');
+            if (favoritesOnlyView) {
+                btn.classList.add('bg-amber-950/40', 'text-amber-400', 'border-amber-700');
+            } else {
+                btn.classList.remove('bg-amber-950/40', 'text-amber-400', 'border-amber-700');
+            }
+            searchTariffTable();
         }
 
         function changePage(direction) {
@@ -854,7 +956,13 @@
                 const desc = (row['الوصف'] || row.description || '').toLowerCase();
                 const origin = (row['المنشأ'] || row.origin || '').toLowerCase();
                 const brand = (row['الشركة المصنعة'] || row.manufacturer || '').toLowerCase();
-                return hs.includes(query) || desc.includes(query) || origin.includes(query) || brand.includes(query);
+                const matchesQuery = hs.includes(query) || desc.includes(query) || origin.includes(query) || brand.includes(query);
+
+                if (favoritesOnlyView) {
+                    const rowHs = (row['HS CODE'] || row['H.S CODE'] || row.hsCode || '').trim();
+                    return matchesQuery && favoriteHsCodes.has(rowHs);
+                }
+                return matchesQuery;
             });
             currentPage = 1;
             renderTariffTable();
@@ -924,6 +1032,15 @@
             const now = new Date();
             document.getElementById('printDate').innerText = now.toLocaleDateString('ar-EG');
             document.getElementById('printInvoiceId').innerText = Math.floor(1000 + Math.random() * 9000);
+
+            document.getElementById('printHsCode').innerText = document.getElementById('searchHsInput').value || '-';
+            document.getElementById('printCondition').innerText = document.getElementById('itemConditionBadge').innerText || '-';
+            const qty = document.getElementById('itemQuantity').value || '1';
+            const unit = document.getElementById('unitMeasure').value || '';
+            document.getElementById('printQtyUnit').innerText = qty + ' ' + unit;
+            const amt = document.getElementById('mainAmount').value || '0';
+            document.getElementById('printAmountUsd').innerText = '$' + amt;
+
             window.print();
         }
     </script>
