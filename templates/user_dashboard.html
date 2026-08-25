@@ -477,22 +477,12 @@
                     </p>
                 </div>
 
-                <div class="relative mb-3">
+                <div class="relative mb-6">
                     <textarea id="aiSearchInput" rows="2" oninput="debouncedAiSearch()"
                         placeholder="مثال: معطر ملابس، أو سيارة كورية سعة 2000 سي سي..."
                         class="w-full p-4 pr-11 bg-slate-900/50 border border-slate-700/60 rounded-2xl font-bold text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm placeholder-slate-500 resize-none"></textarea>
                     <i class="fa-solid fa-wand-magic-sparkles absolute right-4 top-5 text-amber-400"></i>
                 </div>
-
-                <div class="mb-6">
-                    <button type="button" onclick="askAiAssistant()" id="askAiBtn"
-                        class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-5 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 disabled:opacity-50">
-                        <i class="fa-solid fa-robot"></i>
-                        <span>اسأل المساعد الذكي (OpenAI)</span>
-                    </button>
-                </div>
-
-                <div id="aiRecommendationContainer"></div>
 
                 <div id="aiResultsContainer" class="space-y-4">
                     <div class="text-center text-slate-500 text-xs font-bold py-10">
@@ -631,9 +621,6 @@
         }
 
         let aiSearchTimer = null;
-        let lastAiQuery = '';
-        let lastAiScored = [];
-
         function debouncedAiSearch() {
             clearTimeout(aiSearchTimer);
             aiSearchTimer = setTimeout(runAiSearch, 300);
@@ -649,9 +636,6 @@
         function runAiSearch() {
             const raw = document.getElementById('aiSearchInput').value.trim();
             const container = document.getElementById('aiResultsContainer');
-            document.getElementById('aiRecommendationContainer').innerHTML = '';
-            lastAiQuery = raw;
-            lastAiScored = [];
 
             if (!raw) {
                 container.innerHTML = aiEmptyState('ابدأ بكتابة وصف السلعة أعلاه ليقترح لك المساعد أقرب الرموز الجمركية تطابقاً.');
@@ -706,9 +690,7 @@
                 return;
             }
 
-            lastAiScored = scored;
-
-            container.innerHTML = scored.map((item, idx) => {
+            container.innerHTML = scored.map(item => {
                 const pct = Math.round(item.score * 100);
                 const badgeColor = pct >= 70 ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
                                   : pct >= 45 ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
@@ -720,7 +702,7 @@
                     .join(' <span class="text-slate-700">•</span> ');
 
                 return `
-                <div id="aiResultCard-${idx}" class="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-amber-500/40 transition-all">
+                <div class="bg-slate-900/50 border border-slate-700/60 rounded-2xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-amber-500/40 transition-all">
                     <div class="flex-1">
                         <div class="flex items-center gap-2 mb-1 flex-wrap">
                             <span class="text-[10px] font-black px-2 py-1 rounded-lg border ${badgeColor}">تطابق ${pct}%</span>
@@ -735,72 +717,6 @@
                     </div>
                 </div>`;
             }).join('');
-        }
-
-        async function askAiAssistant() {
-            const recContainer = document.getElementById('aiRecommendationContainer');
-            const btn = document.getElementById('askAiBtn');
-
-            if (!lastAiQuery || lastAiScored.length === 0) {
-                recContainer.innerHTML = `<div class="mb-4 text-xs font-bold text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4">
-                    اكتب وصف السلعة أولاً حتى يكون هناك نتائج يختار المساعد الذكي من بينها.
-                </div>`;
-                return;
-            }
-
-            btn.disabled = true;
-            recContainer.innerHTML = `<div class="mb-4 text-xs font-bold text-slate-400 bg-slate-900/50 border border-slate-700/60 rounded-2xl p-4 flex items-center gap-2">
-                <i class="fa-solid fa-spinner fa-spin"></i> المساعد الذكي يحلّل النتائج...
-            </div>`;
-
-            try {
-                const res = await fetch('/api/ai_search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        query: lastAiQuery,
-                        candidates: lastAiScored.map(c => ({ desc: c.desc, code: c.code, source: c.source }))
-                    })
-                });
-                const data = await res.json();
-
-                if (!res.ok) {
-                    recContainer.innerHTML = `<div class="mb-4 text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
-                        ${escapeHtml(data.error || 'تعذّر الوصول إلى المساعد الذكي.')}
-                    </div>`;
-                    return;
-                }
-
-                if (data.best_index === null || data.best_index === undefined) {
-                    recContainer.innerHTML = `<div class="mb-4 text-xs font-bold text-slate-400 bg-slate-900/50 border border-slate-700/60 rounded-2xl p-4">
-                        <i class="fa-solid fa-circle-info text-amber-400"></i> ${escapeHtml(data.explanation || 'لم يجد المساعد الذكي تطابقاً واضحاً بين النتائج الحالية.')}
-                    </div>`;
-                    return;
-                }
-
-                const picked = lastAiScored[data.best_index];
-                recContainer.innerHTML = `
-                <div class="mb-4 bg-gradient-to-l from-amber-500/15 to-transparent border border-amber-500/40 rounded-2xl p-5">
-                    <div class="flex items-center gap-2 mb-2">
-                        <span class="text-[10px] font-black px-2 py-1 rounded-lg bg-amber-500 text-slate-950">⭐ اختيار المساعد الذكي</span>
-                        <span class="font-black text-amber-400 tracking-wider text-sm">${escapeHtml(picked.code) || '—'}</span>
-                    </div>
-                    <p class="font-bold text-white text-sm mb-1">${escapeHtml(picked.desc)}</p>
-                    <p class="text-xs text-slate-300 font-semibold">${escapeHtml(data.explanation)}</p>
-                </div>`;
-
-                const card = document.getElementById(`aiResultCard-${data.best_index}`);
-                if (card) {
-                    card.classList.add('ring-2', 'ring-amber-400');
-                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            } catch (err) {
-                recContainer.innerHTML = `<div class="mb-4 text-xs font-bold text-red-400 bg-red-500/10 border border-red-500/30 rounded-2xl p-4">
-                    تعذّر الاتصال بالمساعد الذكي، تحقق من الاتصال بالإنترنت وحاول مجدداً.
-                </div>`;
-            } finally {
-                btn.disabled = false;
-            }
         }
 
         let currentPage = 1;

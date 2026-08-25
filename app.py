@@ -14,14 +14,12 @@ Flask + SQLite
 """
 
 import os
-import json
 import sqlite3
 import secrets
 import hashlib
 from datetime import datetime, timedelta
 from functools import wraps
 
-import requests
 from flask import (
     Flask, render_template, request, redirect,
     url_for, session, flash, g, send_from_directory, jsonify
@@ -52,10 +50,6 @@ DEFAULT_ADMIN_PASSWORD = "admin123"
 
 # الحد الأقصى لعدد الأجهزة/الجلسات المسموحة لكل مشترك بنفس الوقت
 MAX_ACTIVE_SESSIONS = 2
-
-# إعدادات المساعد الذكي (OpenAI) — المفتاح يُقرأ من متغير بيئة فقط، لا يوضع هنا أبداً
-OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
 
 # ----------------------------------------------------------------------
@@ -461,74 +455,6 @@ def toggle_favorite():
     )
     db.commit()
     return jsonify({"status": "added", "hs_code": hs_code})
-
-
-@app.route("/api/ai_search", methods=["POST"])
-@login_required
-def ai_search():
-    """
-    يستقبل وصف السلعة مع أفضل النتائج المطابقة محلياً (من البحث الدلالي في المتصفح)،
-    ويطلب من نموذج OpenAI اختيار الأنسب من بينها فقط (بدون اختراع رموز جديدة)
-    مع تفسير مختصر بالعربية. يُستخدم كتحسين اختياري فوق البحث المحلي، لا كبديل عنه.
-    """
-    if not OPENAI_API_KEY:
-        return jsonify({"error": "المساعد الذكي غير مفعّل على الخادم حالياً."}), 503
-
-    data = request.get_json(silent=True) or {}
-    query = (data.get("query") or "").strip()
-    candidates = data.get("candidates") or []
-
-    if not query or not candidates:
-        return jsonify({"error": "الرجاء إرسال وصف السلعة والنتائج المرشحة."}), 400
-
-    # تحديد عدد المرشحين المرسلة للنموذج لتقليل التكلفة وسرعة الاستجابة
-    candidates = candidates[:10]
-    candidates_text = "\n".join(
-        f"{i}) الوصف: {c.get('desc', '')} | الرمز: {c.get('code', '')} | المصدر: {c.get('source', '')}"
-        for i, c in enumerate(candidates)
-    )
-
-    system_prompt = (
-        "أنت مساعد متخصص بتصنيف السلع الجمركية. مهمتك اختيار أقرب عنصر واحد فقط "
-        "من القائمة المرسلة إليك يطابق وصف المستخدم، ثم كتابة سبب الاختيار بجملة "
-        "عربية قصيرة وواضحة. اختر فقط من الأرقام الموجودة في القائمة، ولا تخترع "
-        "رمزاً جمركياً غير موجود فيها إطلاقاً. إن لم يوجد أي تطابق معقول أعد "
-        "best_index بقيمة null. أجب حصراً بصيغة JSON بالشكل التالي: "
-        '{"best_index": <رقم أو null>, "explanation": "<نص عربي قصير>"}'
-    )
-    user_prompt = f"وصف المستخدم للسلعة: {query}\n\nالمرشحون:\n{candidates_text}"
-
-    try:
-        resp = requests.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {OPENAI_API_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": OPENAI_MODEL,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "response_format": {"type": "json_object"},
-                "temperature": 0.2,
-            },
-            timeout=20,
-        )
-        resp.raise_for_status()
-        content = resp.json()["choices"][0]["message"]["content"]
-        parsed = json.loads(content)
-    except Exception:
-        return jsonify({"error": "تعذّر الوصول إلى المساعد الذكي حالياً، جرّب لاحقاً."}), 502
-
-    best_index = parsed.get("best_index")
-    explanation = (parsed.get("explanation") or "").strip()
-
-    if not isinstance(best_index, int) or not (0 <= best_index < len(candidates)):
-        best_index = None
-
-    return jsonify({"best_index": best_index, "explanation": explanation})
 
 
 # ---------------------------- لوحة الأدمن ----------------------------
