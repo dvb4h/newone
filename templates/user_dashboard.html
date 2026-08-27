@@ -371,7 +371,7 @@
 
                 <div class="grid grid-cols-1 md:grid-cols-12 gap-4 mb-6">
                     <div class="md:col-span-6 relative">
-                        <input type="text" id="tariffSearchInput" oninput="searchTariffTable()" placeholder="ابحث بررمز HS CODE، الوصف، أو المنشأ..." 
+                        <input type="text" id="tariffSearchInput" oninput="searchTariffTable()" placeholder="ابحث برمز HS CODE، رمز T.S.C، الوصف، أو المنشأ..."
                             class="w-full p-4 pr-11 bg-slate-900/50 border border-slate-700/60 rounded-2xl font-bold text-sm text-white focus:outline-none focus:ring-2 focus:ring-amber-500 shadow-sm placeholder-slate-500">
                         <i class="fa-solid fa-magnifying-glass absolute right-4 top-1/2 -translate-y-1/2 text-slate-400"></i>
                     </div>
@@ -953,10 +953,11 @@
             const query = document.getElementById('tariffSearchInput').value.toLowerCase();
             filteredTariffData = pricingData.filter(row => {
                 const hs = (row['HS CODE'] || row['H.S CODE'] || row.hsCode || '').toLowerCase();
+                const tsc = (row['T.S.C CODE'] || row.tscCode || '').toString().toLowerCase();
                 const desc = (row['الوصف'] || row.description || '').toLowerCase();
                 const origin = (row['المنشأ'] || row.origin || '').toLowerCase();
                 const brand = (row['الشركة المصنعة'] || row.manufacturer || '').toLowerCase();
-                const matchesQuery = hs.includes(query) || desc.includes(query) || origin.includes(query) || brand.includes(query);
+                const matchesQuery = hs.includes(query) || tsc.includes(query) || desc.includes(query) || origin.includes(query) || brand.includes(query);
 
                 if (favoritesOnlyView) {
                     const rowHs = (row['HS CODE'] || row['H.S CODE'] || row.hsCode || '').trim();
