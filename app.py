@@ -48,9 +48,6 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=SESSION_LIFETIME_DAYS)
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin123"
 
-# الحد الأقصى لعدد الأجهزة/الجلسات المسموحة لكل مشترك بنفس الوقت
-MAX_ACTIVE_SESSIONS = 2
-
 
 # ----------------------------------------------------------------------
 # الاتصال بقاعدة البيانات
@@ -267,7 +264,7 @@ def login():
             flash("انتهت مدة اشتراكك. يرجى التواصل مع الإدارة لتجديد الاشتراك.")
             return redirect(url_for("login"))
 
-        # التحقق من حد الأجهزة المسموح (لا ينطبق على الأدمن)
+        # تسجيل جلسة الجهاز الحالي (بدون أي حد أقصى لعدد الأجهزة) — لا ينطبق على الأدمن
         if user["role"] != "admin":
             # تنظيف الجلسات المهجورة (أقدم من SESSION_LIFETIME_DAYS) قبل فحص العدد
             cleanup_stale_sessions(db, user["id"])
@@ -282,18 +279,6 @@ def login():
                 (user["id"], device_fp),
             )
             db.commit()
-
-            active_count = db.execute(
-                "SELECT COUNT(*) AS c FROM active_sessions WHERE user_id = ?",
-                (user["id"],),
-            ).fetchone()["c"]
-
-            if active_count >= MAX_ACTIVE_SESSIONS:
-                flash(
-                    f"وصلت للحد الأقصى ({MAX_ACTIVE_SESSIONS} أجهزة) لتسجيل الدخول بهذا الحساب. "
-                    "يرجى تسجيل الخروج من أحد الأجهزة الأخرى أولاً، أو التواصل مع الإدارة."
-                )
-                return redirect(url_for("login"))
 
             session_token = secrets.token_hex(24)
             db.execute(

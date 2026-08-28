@@ -165,8 +165,8 @@
                                 {% if u.role == 'admin' %}
                                     -
                                 {% else %}
-                                    <span class="px-2.5 py-1 rounded-lg text-[10px] font-black {% if u.active_sessions >= 2 %}bg-blue-950 text-blue-400 border border-blue-800/40{% else %}bg-slate-800 text-slate-300 border border-slate-700{% endif %}">
-                                        {{ u.active_sessions }} / 2
+                                    <span class="px-2.5 py-1 rounded-lg text-[10px] font-black bg-slate-800 text-slate-300 border border-slate-700">
+                                        {{ u.active_sessions }}
                                     </span>
                                 {% endif %}
                             </td>
