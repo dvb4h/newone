@@ -397,7 +397,6 @@
                                 <th class="p-4 border-b border-slate-800">الوصف</th>
                                 <th class="p-4 border-b border-slate-800 text-center">حالة البضاعة</th>
                                 <th class="p-4 border-b border-slate-800">الشركة المصنعة</th>
-                                <th class="p-4 border-b border-slate-800">الموديل</th>
                                 <th class="p-4 border-b border-slate-800">التسعيرة</th>
                                 <th class="p-4 border-b border-slate-800">سنة الصنع</th>
                                 <th class="p-4 border-b border-slate-800 text-center">الإجراء</th>
@@ -782,7 +781,7 @@
             document.getElementById('totalItemsCount').innerText = filteredTariffData.length;
             
             if(filteredTariffData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="11" class="text-center p-8 text-slate-400 font-bold">لا توجد بيانات مطابقة</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="10" class="text-center p-8 text-slate-400 font-bold">لا توجد بيانات مطابقة</td></tr>`;
                 document.getElementById('pageIndicator').innerText = `الصفحة 0 من 0`;
                 return;
             }
@@ -802,7 +801,6 @@
                 const origin = (row['المنشأ'] || row.origin || '').trim() || '-';
                 const desc = (row['الوصف'] || row.description || '').trim() || '-';
                 const brand = (row['الشركة المصنعة'] || row.manufacturer || '').trim() || '-';
-                const model = (row['الموديل'] || row.model || '').trim() || '-';
                 const rawPrice = (row['التسعيرة'] || row.price || '').toString().trim();
                 const displayPrice = rawPrice ? (rawPrice.startsWith('$') ? rawPrice : `$${rawPrice}`) : '-';
                 const year = (row['سنة الصنع'] || row.year || '').toString().trim() || '-';
@@ -831,7 +829,6 @@
                         <td class="p-4 font-bold text-white">${escapeHtml(desc)}</td>
                         <td class="p-4 text-center">${conditionBadge}</td>
                         <td class="p-4 text-xs font-bold text-slate-300">${escapeHtml(brand)}</td>
-                        <td class="p-4 text-xs font-bold text-slate-300">${escapeHtml(model)}</td>
                         <td class="p-4 text-xs font-black text-amber-300">${escapeHtml(displayPrice)}</td>
                         <td class="p-4 font-bold text-slate-300">${escapeHtml(year)}</td>
                         <td class="p-4 text-center">
@@ -968,8 +965,8 @@
                 const desc = (row['الوصف'] || row.description || '').toLowerCase();
                 const origin = (row['المنشأ'] || row.origin || '').toLowerCase();
                 const brand = (row['الشركة المصنعة'] || row.manufacturer || '').toLowerCase();
-                const model = (row['الموديل'] || row.model || '').toLowerCase();
-                const matchesQuery = hs.includes(query) || tsc.includes(query) || desc.includes(query) || origin.includes(query) || brand.includes(query) || model.includes(query);
+                const year = (row['سنة الصنع'] || row.year || '').toString().toLowerCase();
+                const matchesQuery = hs.includes(query) || tsc.includes(query) || desc.includes(query) || origin.includes(query) || brand.includes(query) || year.includes(query);
 
                 if (favoritesOnlyView) {
                     const rowHs = (row['HS CODE'] || row['H.S CODE'] || row.hsCode || '').trim();

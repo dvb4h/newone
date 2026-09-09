@@ -119,7 +119,6 @@ def init_db():
             origin TEXT,
             description TEXT NOT NULL,
             manufacturer TEXT,
-            model TEXT,
             condition TEXT,
             price TEXT,
             year TEXT,
@@ -132,6 +131,12 @@ def init_db():
     existing_cols = [row[1] for row in db.execute("PRAGMA table_info(active_sessions)").fetchall()]
     if "device_fingerprint" not in existing_cols:
         db.execute("ALTER TABLE active_sessions ADD COLUMN device_fingerprint TEXT")
+        db.commit()
+
+    # ترحيل: حذف عمود model من pricing_items (أُلغيت الفكرة، أصبح الحقل غير مستخدم)
+    pricing_cols = [row[1] for row in db.execute("PRAGMA table_info(pricing_items)").fetchall()]
+    if "model" in pricing_cols:
+        db.execute("ALTER TABLE pricing_items DROP COLUMN model")
         db.commit()
 
     admin = db.execute(
@@ -256,7 +261,6 @@ def get_custom_pricing_items():
             "الوصف": r["description"],
             "الحالة": r["condition"] or "",
             "الشركة المصنعة": r["manufacturer"] or "",
-            "الموديل": r["model"] or "",
             "التسعيرة": r["price"] or "",
             "سنة الصنع": r["year"] or "",
         }
@@ -694,7 +698,6 @@ def add_pricing_item():
     origin = request.form.get("origin", "").strip()
     description = request.form.get("description", "").strip()
     manufacturer = request.form.get("manufacturer", "").strip()
-    model = request.form.get("model", "").strip()
     condition = request.form.get("condition", "").strip()
     price = request.form.get("price", "").strip()
     year = request.form.get("year", "").strip()
@@ -706,10 +709,10 @@ def add_pricing_item():
     db = get_db()
     db.execute(
         """INSERT INTO pricing_items
-           (hs_code, tsc_code, origin, description, manufacturer, model, condition, price, year, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+           (hs_code, tsc_code, origin, description, manufacturer, condition, price, year, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         (
-            hs_code, tsc_code, origin, description, manufacturer, model,
+            hs_code, tsc_code, origin, description, manufacturer,
             condition, price, year, datetime.now().strftime(DATE_FMT),
         ),
     )
