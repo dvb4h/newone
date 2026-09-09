@@ -14,6 +14,7 @@ Flask + SQLite
 """
 
 import os
+import json
 import sqlite3
 import secrets
 import hashlib
@@ -108,6 +109,21 @@ def init_db():
             added_at TEXT NOT NULL,
             UNIQUE(user_id, hs_code),
             FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    """)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS pricing_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hs_code TEXT NOT NULL,
+            tsc_code TEXT,
+            origin TEXT,
+            description TEXT NOT NULL,
+            manufacturer TEXT,
+            model TEXT,
+            condition TEXT,
+            price TEXT,
+            year TEXT,
+            created_at TEXT NOT NULL
         )
     """)
     db.commit()
@@ -215,9 +231,45 @@ def admin_required(view):
 # ----------------------------------------------------------------------
 # المسارات (Routes)
 # ----------------------------------------------------------------------
+_BASE_PRICING_CACHE = None
+
+
+def get_base_pricing_data():
+    """يحمّل محتوى static/pricing.json الأصلي مرة واحدة ويخزّنه بالذاكرة."""
+    global _BASE_PRICING_CACHE
+    if _BASE_PRICING_CACHE is None:
+        path = os.path.join(BASE_DIR, "static", "pricing.json")
+        with open(path, "r", encoding="utf-8") as f:
+            _BASE_PRICING_CACHE = json.load(f)
+    return _BASE_PRICING_CACHE
+
+
+def get_custom_pricing_items():
+    """يرجّع بنود التعرفة التي أضافها الأدمن يدوياً من لوحة التحكم، بنفس صيغة pricing.json."""
+    db = get_db()
+    rows = db.execute("SELECT * FROM pricing_items ORDER BY id DESC").fetchall()
+    return [
+        {
+            "HS CODE": r["hs_code"],
+            "T.S.C CODE": r["tsc_code"] or "",
+            "المنشأ": r["origin"] or "",
+            "الوصف": r["description"],
+            "الحالة": r["condition"] or "",
+            "الشركة المصنعة": r["manufacturer"] or "",
+            "الموديل": r["model"] or "",
+            "التسعيرة": r["price"] or "",
+            "سنة الصنع": r["year"] or "",
+        }
+        for r in rows
+    ]
+
+
 @app.route("/pricing.json")
 def pricing_json():
-    return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing.json")
+    custom_items = get_custom_pricing_items()
+    if not custom_items:
+        return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing.json")
+    return jsonify(get_base_pricing_data() + custom_items)
 
 
 @app.route("/pricing2.json")
@@ -497,7 +549,13 @@ def admin_dashboard():
         "calculations_today": calculations_today,
     }
 
-    return render_template("admin_dashboard.html", users=users, stats=stats)
+    pricing_items = db.execute(
+        "SELECT * FROM pricing_items ORDER BY id DESC"
+    ).fetchall()
+
+    return render_template(
+        "admin_dashboard.html", users=users, stats=stats, pricing_items=pricing_items
+    )
 
 
 @app.route("/admin/add_user", methods=["POST"])
@@ -625,6 +683,48 @@ def delete_user(user_id):
     db.execute("DELETE FROM users WHERE id = ?", (user_id,))
     db.commit()
     flash("تم حذف المستخدم.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/add_pricing_item", methods=["POST"])
+@admin_required
+def add_pricing_item():
+    hs_code = request.form.get("hs_code", "").strip()
+    tsc_code = request.form.get("tsc_code", "").strip()
+    origin = request.form.get("origin", "").strip()
+    description = request.form.get("description", "").strip()
+    manufacturer = request.form.get("manufacturer", "").strip()
+    model = request.form.get("model", "").strip()
+    condition = request.form.get("condition", "").strip()
+    price = request.form.get("price", "").strip()
+    year = request.form.get("year", "").strip()
+
+    if not hs_code or not description:
+        flash("رمز HS CODE ووصف السلعة حقلان مطلوبان.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    db = get_db()
+    db.execute(
+        """INSERT INTO pricing_items
+           (hs_code, tsc_code, origin, description, manufacturer, model, condition, price, year, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            hs_code, tsc_code, origin, description, manufacturer, model,
+            condition, price, year, datetime.now().strftime(DATE_FMT),
+        ),
+    )
+    db.commit()
+    flash(f"تمت إضافة التسعيرة '{hs_code}' بنجاح.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/delete_pricing_item/<int:item_id>", methods=["POST"])
+@admin_required
+def delete_pricing_item(item_id):
+    db = get_db()
+    db.execute("DELETE FROM pricing_items WHERE id = ?", (item_id,))
+    db.commit()
+    flash("تم حذف التسعيرة.", "success")
     return redirect(url_for("admin_dashboard"))
 
 

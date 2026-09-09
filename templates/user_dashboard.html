@@ -397,6 +397,7 @@
                                 <th class="p-4 border-b border-slate-800">الوصف</th>
                                 <th class="p-4 border-b border-slate-800 text-center">حالة البضاعة</th>
                                 <th class="p-4 border-b border-slate-800">الشركة المصنعة</th>
+                                <th class="p-4 border-b border-slate-800">الموديل</th>
                                 <th class="p-4 border-b border-slate-800">التسعيرة</th>
                                 <th class="p-4 border-b border-slate-800">سنة الصنع</th>
                                 <th class="p-4 border-b border-slate-800 text-center">الإجراء</th>
@@ -467,6 +468,11 @@
     </main>
 
     <script>
+        function escapeHtml(str) {
+            return (str === undefined || str === null ? '' : str).toString()
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
         let myChart = null;
         
         let pricingData = [
@@ -776,7 +782,7 @@
             document.getElementById('totalItemsCount').innerText = filteredTariffData.length;
             
             if(filteredTariffData.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="10" class="text-center p-8 text-slate-400 font-bold">لا توجد بيانات مطابقة</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="11" class="text-center p-8 text-slate-400 font-bold">لا توجد بيانات مطابقة</td></tr>`;
                 document.getElementById('pageIndicator').innerText = `الصفحة 0 من 0`;
                 return;
             }
@@ -796,13 +802,17 @@
                 const origin = (row['المنشأ'] || row.origin || '').trim() || '-';
                 const desc = (row['الوصف'] || row.description || '').trim() || '-';
                 const brand = (row['الشركة المصنعة'] || row.manufacturer || '').trim() || '-';
+                const model = (row['الموديل'] || row.model || '').trim() || '-';
                 const rawPrice = (row['التسعيرة'] || row.price || '').toString().trim();
                 const displayPrice = rawPrice ? (rawPrice.startsWith('$') ? rawPrice : `$${rawPrice}`) : '-';
                 const year = (row['سنة الصنع'] || row.year || '').toString().trim() || '-';
 
-                const isUsed = desc.toUpperCase().includes('USED');
-                const conditionBadge = isUsed 
-                    ? `<span class="px-2.5 py-1 rounded-lg text-[10px] font-black bg-amber-950 text-amber-400 border border-amber-800/40">مستخدم (Used)</span>` 
+                const explicitCondition = (row['الحالة'] || row.condition || '').trim();
+                const isUsed = explicitCondition
+                    ? (explicitCondition.includes('مستخدم') || explicitCondition.toUpperCase().includes('USED'))
+                    : desc.toUpperCase().includes('USED');
+                const conditionBadge = isUsed
+                    ? `<span class="px-2.5 py-1 rounded-lg text-[10px] font-black bg-amber-950 text-amber-400 border border-amber-800/40">مستخدم (Used)</span>`
                     : `<span class="px-2.5 py-1 rounded-lg text-[10px] font-black bg-emerald-950 text-emerald-400 border border-emerald-800/40">جديد (New)</span>`;
 
                 const isFav = favoriteHsCodes.has(hs);
@@ -811,20 +821,21 @@
                 html += `
                     <tr class="${index % 2 === 0 ? 'bg-slate-900/30' : 'bg-slate-900/60'} hover:bg-amber-950/30 transition-colors">
                         <td class="p-4 text-center">
-                            <button onclick="toggleFavorite('${hs}', '${desc.replace(/'/g, "\\'")}', '${rawPrice}')" class="text-lg hover:scale-125 transition-transform" title="إضافة/إزالة من المفضلة">
+                            <button onclick="toggleFavorite('${escapeHtml(hs)}', '${escapeHtml(desc).replace(/'/g, "\\'")}', '${escapeHtml(rawPrice)}')" class="text-lg hover:scale-125 transition-transform" title="إضافة/إزالة من المفضلة">
                                 <i class="${starIcon}"></i>
                             </button>
                         </td>
-                        <td class="p-4 font-black text-amber-400">${hs}</td>
-                        <td class="p-4 text-xs font-bold text-blue-400">${tsc}</td>
-                        <td class="p-4 text-xs font-bold text-slate-300">${origin}</td>
-                        <td class="p-4 font-bold text-white">${desc}</td>
+                        <td class="p-4 font-black text-amber-400">${escapeHtml(hs)}</td>
+                        <td class="p-4 text-xs font-bold text-blue-400">${escapeHtml(tsc)}</td>
+                        <td class="p-4 text-xs font-bold text-slate-300">${escapeHtml(origin)}</td>
+                        <td class="p-4 font-bold text-white">${escapeHtml(desc)}</td>
                         <td class="p-4 text-center">${conditionBadge}</td>
-                        <td class="p-4 text-xs font-bold text-slate-300">${brand}</td>
-                        <td class="p-4 text-xs font-black text-amber-300">${displayPrice}</td>
-                        <td class="p-4 font-bold text-slate-300">${year}</td>
+                        <td class="p-4 text-xs font-bold text-slate-300">${escapeHtml(brand)}</td>
+                        <td class="p-4 text-xs font-bold text-slate-300">${escapeHtml(model)}</td>
+                        <td class="p-4 text-xs font-black text-amber-300">${escapeHtml(displayPrice)}</td>
+                        <td class="p-4 font-bold text-slate-300">${escapeHtml(year)}</td>
                         <td class="p-4 text-center">
-                            <button onclick="transferToCalculator('${hs}', '${rawPrice}', '${desc.replace(/'/g, "\\'")}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center gap-1.5 mx-auto">
+                            <button onclick="transferToCalculator('${escapeHtml(hs)}', '${escapeHtml(rawPrice)}', '${escapeHtml(desc).replace(/'/g, "\\'")}')" class="bg-amber-500 hover:bg-amber-400 text-slate-950 px-3 py-1.5 rounded-xl text-xs font-black transition-all shadow-md active:scale-95 flex items-center gap-1.5 mx-auto">
                                 <i class="fa-solid fa-calculator text-[11px]"></i>
                                 <span>حساب التعرفة</span>
                             </button>
@@ -957,7 +968,8 @@
                 const desc = (row['الوصف'] || row.description || '').toLowerCase();
                 const origin = (row['المنشأ'] || row.origin || '').toLowerCase();
                 const brand = (row['الشركة المصنعة'] || row.manufacturer || '').toLowerCase();
-                const matchesQuery = hs.includes(query) || tsc.includes(query) || desc.includes(query) || origin.includes(query) || brand.includes(query);
+                const model = (row['الموديل'] || row.model || '').toLowerCase();
+                const matchesQuery = hs.includes(query) || tsc.includes(query) || desc.includes(query) || origin.includes(query) || brand.includes(query) || model.includes(query);
 
                 if (favoritesOnlyView) {
                     const rowHs = (row['HS CODE'] || row['H.S CODE'] || row.hsCode || '').trim();

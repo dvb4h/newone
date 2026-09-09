@@ -206,6 +206,110 @@
                 </table>
             </div>
         </div>
+
+        <!-- نموذج إضافة تسعيرة جديدة -->
+        <div class="glass-panel p-6 md:p-8 rounded-[2rem] shadow-xl mt-8">
+            <h3 class="text-lg font-black text-white mb-5 flex items-center gap-2">
+                <i class="fa-solid fa-tags text-blue-400"></i>
+                إضافة تسعيرة جديدة لجدول التعرفة الجمركية
+            </h3>
+            <form method="POST" action="{{ url_for('add_pricing_item') }}" class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">HS CODE *</label>
+                    <input type="text" name="hs_code" required
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">T.S.C CODE</label>
+                    <input type="text" name="tsc_code"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">المنشأ</label>
+                    <input type="text" name="origin"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">الشركة المصنعة</label>
+                    <input type="text" name="manufacturer"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">الموديل</label>
+                    <input type="text" name="model"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">الحالة</label>
+                    <select name="condition"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                        <option value="جديد">جديد (New)</option>
+                        <option value="مستخدم">مستخدم (Used)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">التسعيرة (USD)</label>
+                    <input type="text" name="price" placeholder="مثال: 12,500"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">سنة الصنع</label>
+                    <input type="text" name="year" placeholder="مثال: 2026"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="md:col-span-3 lg:col-span-4">
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">وصف السلعة *</label>
+                    <input type="text" name="description" required
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="md:col-span-3 lg:col-span-4 flex justify-end">
+                    <button type="submit" class="py-2.5 px-6 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-400 hover:to-cyan-500 text-white font-black rounded-xl transition-all text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-plus"></i>
+                        إضافة التسعيرة
+                    </button>
+                </div>
+            </form>
+
+            {% if pricing_items %}
+            <div class="mt-8 pt-6 border-t border-slate-800">
+                <h4 class="text-sm font-black text-slate-300 mb-4">التسعيرات المضافة يدوياً ({{ pricing_items|length }})</h4>
+                <div class="overflow-x-auto rounded-2xl border border-slate-800/60">
+                    <table class="w-full text-right border-collapse">
+                        <thead>
+                            <tr class="bg-slate-950/80 text-blue-400 text-xs font-black">
+                                <th class="p-3 border-b border-slate-800">HS CODE</th>
+                                <th class="p-3 border-b border-slate-800">T.S.C</th>
+                                <th class="p-3 border-b border-slate-800">الوصف</th>
+                                <th class="p-3 border-b border-slate-800">الموديل</th>
+                                <th class="p-3 border-b border-slate-800">الحالة</th>
+                                <th class="p-3 border-b border-slate-800">التسعيرة</th>
+                                <th class="p-3 border-b border-slate-800 text-center">إجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/60 text-xs font-semibold text-slate-300">
+                            {% for item in pricing_items %}
+                            <tr class="hover:bg-blue-950/10 transition-colors">
+                                <td class="p-3 font-black text-white">{{ item.hs_code }}</td>
+                                <td class="p-3">{{ item.tsc_code or '-' }}</td>
+                                <td class="p-3">{{ item.description }}</td>
+                                <td class="p-3">{{ item.model or '-' }}</td>
+                                <td class="p-3">{{ item.condition or '-' }}</td>
+                                <td class="p-3">{{ item.price or '-' }}</td>
+                                <td class="p-3 text-center">
+                                    <form method="POST" action="{{ url_for('delete_pricing_item', item_id=item.id) }}" onsubmit="return confirm('هل أنت متأكد من حذف هذه التسعيرة؟');">
+                                        <button type="submit" class="bg-red-950/40 hover:bg-red-900/50 text-red-400 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-red-900/40">
+                                            حذف
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
     </main>
 </body>
 </html>
