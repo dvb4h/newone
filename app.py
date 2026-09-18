@@ -772,6 +772,35 @@ def add_pricing_item():
     return redirect(url_for("admin_dashboard"))
 
 
+@app.route("/admin/edit_pricing_item/<int:item_id>", methods=["POST"])
+@admin_required
+def edit_pricing_item(item_id):
+    hs_code = request.form.get("hs_code", "").strip()
+    tsc_code = request.form.get("tsc_code", "").strip()
+    origin = request.form.get("origin", "").strip()
+    description = request.form.get("description", "").strip()
+    manufacturer = request.form.get("manufacturer", "").strip()
+    condition = request.form.get("condition", "").strip()
+    price = request.form.get("price", "").strip()
+    year = request.form.get("year", "").strip()
+
+    if not hs_code or not description:
+        flash("رمز HS CODE ووصف السلعة حقلان مطلوبان.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    db = get_db()
+    db.execute(
+        """UPDATE pricing_items
+           SET hs_code = ?, tsc_code = ?, origin = ?, description = ?,
+               manufacturer = ?, condition = ?, price = ?, year = ?
+           WHERE id = ?""",
+        (hs_code, tsc_code, origin, description, manufacturer, condition, price, year, item_id),
+    )
+    db.commit()
+    flash(f"تم تحديث التسعيرة '{hs_code}' بنجاح.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
 @app.route("/admin/delete_pricing_item/<int:item_id>", methods=["POST"])
 @admin_required
 def delete_pricing_item(item_id):

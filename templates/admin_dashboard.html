@@ -291,11 +291,26 @@
                                 <td class="p-3">{{ item.condition or '-' }}</td>
                                 <td class="p-3">{{ item.price or '-' }}</td>
                                 <td class="p-3 text-center">
-                                    <form method="POST" action="{{ url_for('delete_pricing_item', item_id=item.id) }}" onsubmit="return confirm('هل أنت متأكد من حذف هذه التسعيرة؟');">
-                                        <button type="submit" class="bg-red-950/40 hover:bg-red-900/50 text-red-400 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-red-900/40">
-                                            حذف
+                                    <div class="flex items-center justify-center gap-2">
+                                        <button type="button" onclick="openEditModal(this)"
+                                            data-edit-url="{{ url_for('edit_pricing_item', item_id=item.id) }}"
+                                            data-hs="{{ item.hs_code }}"
+                                            data-tsc="{{ item.tsc_code or '' }}"
+                                            data-origin="{{ item.origin or '' }}"
+                                            data-desc="{{ item.description }}"
+                                            data-manufacturer="{{ item.manufacturer or '' }}"
+                                            data-condition="{{ item.condition or '' }}"
+                                            data-price="{{ item.price or '' }}"
+                                            data-year="{{ item.year or '' }}"
+                                            class="bg-blue-950/40 hover:bg-blue-900/50 text-blue-400 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-blue-900/40">
+                                            تعديل
                                         </button>
-                                    </form>
+                                        <form method="POST" action="{{ url_for('delete_pricing_item', item_id=item.id) }}" onsubmit="return confirm('هل أنت متأكد من حذف هذه التسعيرة؟');">
+                                            <button type="submit" class="bg-red-950/40 hover:bg-red-900/50 text-red-400 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all border border-red-900/40">
+                                                حذف
+                                            </button>
+                                        </form>
+                                    </div>
                                 </td>
                             </tr>
                             {% endfor %}
@@ -306,5 +321,102 @@
             {% endif %}
         </div>
     </main>
+
+    <!-- نافذة تعديل التسعيرة -->
+    <div id="editPricingModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/60 backdrop-blur-sm p-4" onclick="if (event.target === this) closeEditModal();">
+        <div class="glass-panel w-full max-w-2xl rounded-[2rem] p-6 md:p-8 shadow-2xl border border-blue-500/30 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between mb-6">
+                <h3 class="text-lg font-black text-white flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-blue-400"></i>
+                    تعديل التسعيرة
+                </h3>
+                <button type="button" onclick="closeEditModal()" class="text-slate-400 hover:text-white transition-colors">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            <form id="editPricingForm" method="POST" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">HS CODE *</label>
+                    <input type="text" name="hs_code" id="editHsCode" required
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">T.S.C CODE</label>
+                    <input type="text" name="tsc_code" id="editTscCode"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">المنشأ</label>
+                    <input type="text" name="origin" id="editOrigin"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">الشركة المصنعة</label>
+                    <input type="text" name="manufacturer" id="editManufacturer"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">الحالة</label>
+                    <select name="condition" id="editCondition"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                        <option value="جديد">جديد (New)</option>
+                        <option value="مستخدم">مستخدم (Used)</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">التسعيرة (USD)</label>
+                    <input type="text" name="price" id="editPrice"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">سنة الصنع</label>
+                    <input type="text" name="year" id="editYear"
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-semibold text-slate-300 mb-1.5">وصف السلعة *</label>
+                    <input type="text" name="description" id="editDescription" required
+                        class="w-full px-4 py-2.5 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-blue-500">
+                </div>
+                <div class="md:col-span-2 flex justify-end gap-3 mt-2">
+                    <button type="button" onclick="closeEditModal()" class="py-2.5 px-6 bg-slate-800 hover:bg-slate-700 text-slate-300 font-black rounded-xl transition-all text-sm">
+                        إلغاء
+                    </button>
+                    <button type="submit" class="py-2.5 px-6 bg-gradient-to-r from-blue-500 to-cyan-600 hover:from-blue-400 hover:to-cyan-500 text-white font-black rounded-xl transition-all text-sm flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-floppy-disk"></i>
+                        حفظ التعديلات
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openEditModal(btn) {
+            document.getElementById('editPricingForm').action = btn.dataset.editUrl;
+            document.getElementById('editHsCode').value = btn.dataset.hs;
+            document.getElementById('editTscCode').value = btn.dataset.tsc;
+            document.getElementById('editOrigin').value = btn.dataset.origin;
+            document.getElementById('editManufacturer').value = btn.dataset.manufacturer;
+            document.getElementById('editCondition').value = btn.dataset.condition;
+            document.getElementById('editPrice').value = btn.dataset.price;
+            document.getElementById('editYear').value = btn.dataset.year;
+            document.getElementById('editDescription').value = btn.dataset.desc;
+
+            const modal = document.getElementById('editPricingModal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('editPricingModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeEditModal();
+        });
+    </script>
 </body>
 </html>
