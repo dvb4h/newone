@@ -581,9 +581,20 @@
             const badge = document.getElementById('hsUnitBadge');
             const valueEl = document.getElementById('hsUnitValue');
             const unit = hsUnitMap[(hsCode || '').toString().trim()];
+            const unitSelect = document.getElementById('unitMeasure');
+
             if (unit) {
                 valueEl.innerText = unit;
                 badge.classList.remove('hidden');
+
+                let option = Array.from(unitSelect.options).find(o => o.value === unit);
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = unit;
+                    option.textContent = unit;
+                    unitSelect.appendChild(option);
+                }
+                unitSelect.value = unit;
             } else {
                 badge.classList.add('hidden');
             }
