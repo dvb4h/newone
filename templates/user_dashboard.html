@@ -161,9 +161,14 @@
                     <div class="space-y-4">
                         <!-- مربع البحث وجلب البيانات من pricing2.json -->
                         <div class="input-focus border border-slate-700/60 rounded-2xl p-4 transition-all bg-slate-900/50 relative">
-                            <label class="block text-[10px] font-black text-amber-400 mb-1">ابحث بررمز HS CODE</label>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="block text-[10px] font-black text-amber-400">ابحث بررمز HS CODE</label>
+                                <span id="hsUnitBadge" class="hidden text-[10px] font-black text-blue-400 bg-blue-950/40 border border-blue-800/40 px-2 py-0.5 rounded-lg">
+                                    وحدة القياس: <span id="hsUnitValue"></span>
+                                </span>
+                            </div>
                             <div class="flex items-center">
-                                <input type="text" id="searchHsInput" oninput="filterPricing2Options()" placeholder="اكتب رمز HS CODE للبحث..." 
+                                <input type="text" id="searchHsInput" oninput="filterPricing2Options()" placeholder="اكتب رمز HS CODE للبحث..."
                                     class="w-full bg-transparent border-none focus:outline-none font-bold text-sm text-white placeholder-slate-500">
                                 <i class="fa-solid fa-magnifying-glass text-slate-400"></i>
                             </div>
@@ -552,12 +557,45 @@
         const rowsPerPage = 50;
         let filteredTariffData = pricingData;
 
+        // دالة جلب بيانات وحدات القياس لكل رمز HS من ملف pricing4.json
+        let hsUnitMap = {};
+
+        async function loadPricing4File() {
+            try {
+                const response = await fetch('pricing4.json');
+                if (!response.ok) throw new Error('pricing4.json not found');
+                const data = await response.json();
+                data.forEach(item => {
+                    const hs = (item['H.S CODE'] || item['HS CODE'] || '').toString().trim();
+                    const unit = (item['وحدة القياس'] || '').toString().trim();
+                    if (hs && unit && !hsUnitMap[hs]) {
+                        hsUnitMap[hs] = unit;
+                    }
+                });
+            } catch (error) {
+                console.log('pricing4.json غير متوفر حالياً لوحدات القياس.');
+            }
+        }
+
+        function updateHsUnitBadge(hsCode) {
+            const badge = document.getElementById('hsUnitBadge');
+            const valueEl = document.getElementById('hsUnitValue');
+            const unit = hsUnitMap[(hsCode || '').toString().trim()];
+            if (unit) {
+                valueEl.innerText = unit;
+                badge.classList.remove('hidden');
+            } else {
+                badge.classList.add('hidden');
+            }
+        }
+
         function loadAllData() {
             filteredTariffData = pricingData;
             renderTariffTable();
             loadPricing2File(); // تحميل بيانات pricing2.json عند بدء التشغيل
             loadTariffJsonFile(); // تحميل بيانات جدول التعرفة من pricing.json
             loadProtectionJsonFile(); // تحميل بيانات قسم حماية المنتج من pricing3.json
+            loadPricing4File(); // تحميل بيانات وحدات القياس من pricing4.json
             loadFavorites().then(renderTariffTable); // تحميل المفضلة ثم إعادة رسم الجدول لإظهار النجوم
         }
         window.addEventListener('DOMContentLoaded', loadAllData);
@@ -643,11 +681,12 @@
             document.getElementById('autoFeePercent').value = fee || '15%';
             document.getElementById('autoTaxPercent').value = tax || '3%';
             document.getElementById('hsDropdownResults').classList.add('hidden');
-            
+            updateHsUnitBadge(hs);
+
             if (desc) {
                 checkItemCondition(desc);
             }
-            
+
             performCalculation();
         }
 
@@ -924,6 +963,7 @@
             
             document.getElementById('searchHsInput').value = hsCode;
             checkItemCondition(description);
+            updateHsUnitBadge(hsCode);
             
             const found = pricing2Data.find(item => {
                 for (let key of Object.keys(item)) {

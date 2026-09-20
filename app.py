@@ -337,6 +337,11 @@ def pricing3_json():
     return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing3.json")
 
 
+@app.route("/pricing4.json")
+def pricing4_json():
+    return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing4.json")
+
+
 @app.route("/")
 def index():
     if "user_id" in session:
