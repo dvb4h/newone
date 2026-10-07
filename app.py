@@ -14,6 +14,7 @@ Flask + SQLite
 """
 
 import os
+import json
 import sqlite3
 import secrets
 import hashlib
@@ -48,9 +49,6 @@ app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=SESSION_LIFETIME_DAYS)
 DEFAULT_ADMIN_USERNAME = "admin"
 DEFAULT_ADMIN_PASSWORD = "admin123"
 
-# الحد الأقصى لعدد الأجهزة/الجلسات المسموحة لكل مشترك بنفس الوقت
-MAX_ACTIVE_SESSIONS = 2
-
 
 # ----------------------------------------------------------------------
 # الاتصال بقاعدة البيانات
@@ -67,6 +65,55 @@ def close_db(exception=None):
     db = g.pop("db", None)
     if db is not None:
         db.close()
+
+
+def seed_bmw_batch_20260918(db):
+    """
+    إدخال دفعة تسعيرات (بي ام دبليو وغيرها) زوّدنا بها الأدمن يدوياً عبر صور جداول
+    بتاريخ 2026-09-18. التسعيرة المخزّنة = متوسط الحد الأدنى والحد الأعلى للجديد.
+    يتحقق أولاً من عدم إدخال الدفعة سابقاً حتى لا تتكرر عند كل إعادة تشغيل.
+    """
+    marker = db.execute(
+        "SELECT id FROM pricing_items WHERE hs_code = ? AND description = ?",
+        ("87034000", "بي ام دبليو XDRIVE M60I X7 هايبرد ستيشن حجم 4400 سي سي 8 سلندر 7 راكب دفع رباعي"),
+    ).fetchone()
+    if marker is not None:
+        return
+
+    items = [
+        ("87034000", "المانيا", "بي ام دبليو XDRIVE M60I X7 هايبرد ستيشن حجم 4400 سي سي 8 سلندر 7 راكب دفع رباعي", "115500", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو X6 هايبرد ستيشن حجم 4400 سي سي 8 سلندر 5 راكب دفع رباعي", "136500", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو XDRIVE M60I X5 هايبرد ستيشن حجم 4400 سي سي 8 سلندر 5 راكب دفع رباعي", "81000", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو XDRIVE 760I هايبرد صالون حجم 4400 سي سي 8 سلندر 5 راكب دفع رباعي", "144500", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو M5 هايبرد صالون حجم 4400 سي سي 8 سلندر 5 راكب دفع رباعي", "128500", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو XDRIVE 40I X7 هايبرد ستيشن حجم 3000 سي سي 6 سلندر 7 راكب دفع رباعي", "94500", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو 740I هايبرد صالون حجم 3000 سي سي 6 سلندر 5 راكب دفع ثنائي", "125000", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو 735I هايبرد صالون حجم 3000 سي سي 6 سلندر 5 راكب دفع ثنائي", "70500", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو XDRIVE M50 X3 هايبرد ستيشن حجم 3000 سي سي 6 سلندر 5 راكب دفع رباعي", "63500", "2026"),
+        ("87032370", "المانيا", "بي ام دبليو XDRIVE 20I X2 ستيشن حجم 2000 سي سي 4 سلندر 5 راكب دفع رباعي", "44000", "2026"),
+        ("87032390", "المانيا", "بي ام دبليو 430I صالون حجم 2000 سي سي 4 سلندر 5 راكب دفع ثنائي", "53000", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو 520I هايبرد صالون حجم 2000 سي سي 4 سلندر 5 راكب دفع ثنائي", "57500", "2026"),
+        ("87032390", "المانيا", "بي ام دبليو 430I تك باب سقف متحرك صالون حجم 2000 سي سي 4 سلندر 5 راكب دفع ثنائي", "62500", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو XDRIVE 20 X3 هايبرد ستيشن حجم 2000 سي سي 4 سلندر 5 راكب دفع رباعي", "49500", "2026"),
+        ("87034000", "المانيا", "بي ام دبليو 530I هايبرد صالون حجم 2000 سي سي 4 سلندر 5 راكب دفع ثنائي", "64500", "2026"),
+        ("87043150", "امريكا", "بيك اب هوندا ريدجلاين 1 طن دبل قمارة 6 سلندر محرك 3500 سي سي 5 راكب دفع رباعي", "30000", "2025"),
+        ("87054000", "المانيا", "مرسيدس اكتروز خباطة تك قمارة دبل اكسل محور اضافي", "81000", "2014"),
+        ("87042260", "اليابان", "هينو حمل قمارة وربع محور خلفي 6 سلندر 2 راكب 3 طن", "36000", "2026"),
+        ("87038000", "امريكا", "كاديلاك اسكاليد IQ كهربائية ستيشن 7 راكب", "146000", "2026"),
+        ("87021030", "الهند", "اشوك ليلند فالكون باص محرك 5700 دفع ثنائي 6 سلندر عدد الركاب 25 نوم + 10 مقاعد + السائق 1 كاز", "70000", "2025"),
+        ("87032370", "كوريا", "كيا سبورتج ستيشن 2500 المحرك دفع رباعي 4 سلندر 5 راكب", "25000", "2026"),
+        ("87032390", "كوريا", "كيا سبورتج ستيشن 2500 المحرك دفع ثنائي 4 سلندر 5 راكب", "24000", "2026"),
+    ]
+
+    now = datetime.now().strftime(DATE_FMT)
+    for hs_code, origin, description, price, year in items:
+        db.execute(
+            """INSERT INTO pricing_items
+               (hs_code, tsc_code, origin, description, manufacturer, condition, price, year, created_at)
+               VALUES (?, '', ?, ?, '', 'جديد', ?, ?, ?)""",
+            (hs_code, origin, description, price, year, now),
+        )
+    db.commit()
 
 
 def init_db():
@@ -113,6 +160,20 @@ def init_db():
             FOREIGN KEY (user_id) REFERENCES users (id)
         )
     """)
+    db.execute("""
+        CREATE TABLE IF NOT EXISTS pricing_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            hs_code TEXT NOT NULL,
+            tsc_code TEXT,
+            origin TEXT,
+            description TEXT NOT NULL,
+            manufacturer TEXT,
+            condition TEXT,
+            price TEXT,
+            year TEXT,
+            created_at TEXT NOT NULL
+        )
+    """)
     db.commit()
 
     # ترحيل بسيط: إضافة عمود device_fingerprint لو القاعدة كانت موجودة من قبل بدونه
@@ -120,6 +181,14 @@ def init_db():
     if "device_fingerprint" not in existing_cols:
         db.execute("ALTER TABLE active_sessions ADD COLUMN device_fingerprint TEXT")
         db.commit()
+
+    # ترحيل: حذف عمود model من pricing_items (أُلغيت الفكرة، أصبح الحقل غير مستخدم)
+    pricing_cols = [row[1] for row in db.execute("PRAGMA table_info(pricing_items)").fetchall()]
+    if "model" in pricing_cols:
+        db.execute("ALTER TABLE pricing_items DROP COLUMN model")
+        db.commit()
+
+    seed_bmw_batch_20260918(db)
 
     admin = db.execute(
         "SELECT id FROM users WHERE username = ?", (DEFAULT_ADMIN_USERNAME,)
@@ -218,9 +287,44 @@ def admin_required(view):
 # ----------------------------------------------------------------------
 # المسارات (Routes)
 # ----------------------------------------------------------------------
+_BASE_PRICING_CACHE = None
+
+
+def get_base_pricing_data():
+    """يحمّل محتوى static/pricing.json الأصلي مرة واحدة ويخزّنه بالذاكرة."""
+    global _BASE_PRICING_CACHE
+    if _BASE_PRICING_CACHE is None:
+        path = os.path.join(BASE_DIR, "static", "pricing.json")
+        with open(path, "r", encoding="utf-8") as f:
+            _BASE_PRICING_CACHE = json.load(f)
+    return _BASE_PRICING_CACHE
+
+
+def get_custom_pricing_items():
+    """يرجّع بنود التعرفة التي أضافها الأدمن يدوياً من لوحة التحكم، بنفس صيغة pricing.json."""
+    db = get_db()
+    rows = db.execute("SELECT * FROM pricing_items ORDER BY id DESC").fetchall()
+    return [
+        {
+            "HS CODE": r["hs_code"],
+            "T.S.C CODE": r["tsc_code"] or "",
+            "المنشأ": r["origin"] or "",
+            "الوصف": r["description"],
+            "الحالة": r["condition"] or "",
+            "الشركة المصنعة": r["manufacturer"] or "",
+            "التسعيرة": r["price"] or "",
+            "سنة الصنع": r["year"] or "",
+        }
+        for r in rows
+    ]
+
+
 @app.route("/pricing.json")
 def pricing_json():
-    return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing.json")
+    custom_items = get_custom_pricing_items()
+    if not custom_items:
+        return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing.json")
+    return jsonify(get_base_pricing_data() + custom_items)
 
 
 @app.route("/pricing2.json")
@@ -231,6 +335,11 @@ def pricing2_json():
 @app.route("/pricing3.json")
 def pricing3_json():
     return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing3.json")
+
+
+@app.route("/pricing4.json")
+def pricing4_json():
+    return send_from_directory(os.path.join(BASE_DIR, "static"), "pricing4.json")
 
 
 @app.route("/")
@@ -267,7 +376,7 @@ def login():
             flash("انتهت مدة اشتراكك. يرجى التواصل مع الإدارة لتجديد الاشتراك.")
             return redirect(url_for("login"))
 
-        # التحقق من حد الأجهزة المسموح (لا ينطبق على الأدمن)
+        # تسجيل جلسة الجهاز الحالي (بدون أي حد أقصى لعدد الأجهزة) — لا ينطبق على الأدمن
         if user["role"] != "admin":
             # تنظيف الجلسات المهجورة (أقدم من SESSION_LIFETIME_DAYS) قبل فحص العدد
             cleanup_stale_sessions(db, user["id"])
@@ -282,18 +391,6 @@ def login():
                 (user["id"], device_fp),
             )
             db.commit()
-
-            active_count = db.execute(
-                "SELECT COUNT(*) AS c FROM active_sessions WHERE user_id = ?",
-                (user["id"],),
-            ).fetchone()["c"]
-
-            if active_count >= MAX_ACTIVE_SESSIONS:
-                flash(
-                    f"وصلت للحد الأقصى ({MAX_ACTIVE_SESSIONS} أجهزة) لتسجيل الدخول بهذا الحساب. "
-                    "يرجى تسجيل الخروج من أحد الأجهزة الأخرى أولاً، أو التواصل مع الإدارة."
-                )
-                return redirect(url_for("login"))
 
             session_token = secrets.token_hex(24)
             db.execute(
@@ -512,7 +609,13 @@ def admin_dashboard():
         "calculations_today": calculations_today,
     }
 
-    return render_template("admin_dashboard.html", users=users, stats=stats)
+    pricing_items = db.execute(
+        "SELECT * FROM pricing_items ORDER BY id DESC"
+    ).fetchall()
+
+    return render_template(
+        "admin_dashboard.html", users=users, stats=stats, pricing_items=pricing_items
+    )
 
 
 @app.route("/admin/add_user", methods=["POST"])
@@ -640,6 +743,76 @@ def delete_user(user_id):
     db.execute("DELETE FROM users WHERE id = ?", (user_id,))
     db.commit()
     flash("تم حذف المستخدم.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/add_pricing_item", methods=["POST"])
+@admin_required
+def add_pricing_item():
+    hs_code = request.form.get("hs_code", "").strip()
+    tsc_code = request.form.get("tsc_code", "").strip()
+    origin = request.form.get("origin", "").strip()
+    description = request.form.get("description", "").strip()
+    manufacturer = request.form.get("manufacturer", "").strip()
+    condition = request.form.get("condition", "").strip()
+    price = request.form.get("price", "").strip()
+    year = request.form.get("year", "").strip()
+
+    if not hs_code or not description:
+        flash("رمز HS CODE ووصف السلعة حقلان مطلوبان.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    db = get_db()
+    db.execute(
+        """INSERT INTO pricing_items
+           (hs_code, tsc_code, origin, description, manufacturer, condition, price, year, created_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            hs_code, tsc_code, origin, description, manufacturer,
+            condition, price, year, datetime.now().strftime(DATE_FMT),
+        ),
+    )
+    db.commit()
+    flash(f"تمت إضافة التسعيرة '{hs_code}' بنجاح.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/edit_pricing_item/<int:item_id>", methods=["POST"])
+@admin_required
+def edit_pricing_item(item_id):
+    hs_code = request.form.get("hs_code", "").strip()
+    tsc_code = request.form.get("tsc_code", "").strip()
+    origin = request.form.get("origin", "").strip()
+    description = request.form.get("description", "").strip()
+    manufacturer = request.form.get("manufacturer", "").strip()
+    condition = request.form.get("condition", "").strip()
+    price = request.form.get("price", "").strip()
+    year = request.form.get("year", "").strip()
+
+    if not hs_code or not description:
+        flash("رمز HS CODE ووصف السلعة حقلان مطلوبان.", "error")
+        return redirect(url_for("admin_dashboard"))
+
+    db = get_db()
+    db.execute(
+        """UPDATE pricing_items
+           SET hs_code = ?, tsc_code = ?, origin = ?, description = ?,
+               manufacturer = ?, condition = ?, price = ?, year = ?
+           WHERE id = ?""",
+        (hs_code, tsc_code, origin, description, manufacturer, condition, price, year, item_id),
+    )
+    db.commit()
+    flash(f"تم تحديث التسعيرة '{hs_code}' بنجاح.", "success")
+    return redirect(url_for("admin_dashboard"))
+
+
+@app.route("/admin/delete_pricing_item/<int:item_id>", methods=["POST"])
+@admin_required
+def delete_pricing_item(item_id):
+    db = get_db()
+    db.execute("DELETE FROM pricing_items WHERE id = ?", (item_id,))
+    db.commit()
+    flash("تم حذف التسعيرة.", "success")
     return redirect(url_for("admin_dashboard"))
 
 
