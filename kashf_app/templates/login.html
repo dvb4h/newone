@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}تسجيل الدخول · منصة الكشف الكمركي{% endblock %}
+{% block body %}
+<div style="min-height:100vh;display:grid;place-items:center;padding:16px">
+  <div class="card" style="width:100%;max-width:400px;padding:28px">
+    <div class="brand" style="margin-bottom:22px"><div class="emb">ك</div><div><b>منصة الكشف الكمركي</b><span>تسجيل دخول المشتركين</span></div></div>
+    {% include "_flash.html" %}
+    <form method="post">
+      <div style="margin-bottom:14px"><label>اسم المستخدم</label><input name="username" required autofocus autocomplete="username"></div>
+      <div style="margin-bottom:20px"><label>كلمة المرور</label><input name="password" type="password" required autocomplete="current-password"></div>
+      <button class="btn gold" style="width:100%;padding:11px">تسجيل الدخول</button>
+    </form>
+    <p style="font-size:12px;color:var(--muted);margin:18px 0 0;text-align:center">للاشتراك أو التجديد تواصل مع الإدارة</p>
+  </div>
+</div>
+{% endblock %}

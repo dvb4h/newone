@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+{% block title %}لوحة الأدمن · منصة الكشف الكمركي{% endblock %}
+{% block head %}
+<style>
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.top .sp{flex:1}
+.stats{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px}
+.stat span{font-size:12.5px;color:var(--muted)}
+.stat b{display:block;font-size:26px;font-family:var(--mono);font-weight:500;margin-top:2px}
+.grid{display:grid;grid-template-columns:330px 1fr;gap:16px;align-items:start}
+h2{font-size:15px;margin:0 0 14px;font-weight:600}
+.f{margin-bottom:12px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.chips button{border:1px solid var(--line2);background:transparent;border-radius:999px;padding:4px 11px;font-size:12px;cursor:pointer;color:var(--muted)}
+.chips button:hover,.chips button.on{border-color:var(--gold);color:var(--gold2);background:var(--gold-soft)}
+.tbl{overflow-x:auto;margin:0 -20px -20px;padding:0 20px 20px}
+table{width:100%;border-collapse:collapse;font-size:13.5px;min-width:760px}
+th{text-align:right;font-weight:500;color:var(--muted);font-size:12px;padding:8px 10px;border-bottom:1px solid var(--line2);white-space:nowrap}
+td{padding:11px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+.u b{display:block}.u small{color:var(--muted);font-size:12px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 9px;border-radius:999px;border:1px solid;white-space:nowrap}
+.badge i{width:7px;height:7px;border-radius:50%;background:currentColor}
+.b-active{color:var(--ok);border-color:rgba(65,207,143,.35);background:rgba(65,207,143,.08)}
+.b-expiring{color:var(--warn);border-color:rgba(241,205,133,.35);background:rgba(241,205,133,.08)}
+.b-expired,.b-stopped{color:var(--bad);border-color:rgba(255,107,91,.35);background:rgba(255,107,91,.08)}
+.acts{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.acts form{display:inline-flex;gap:4px;margin:0}
+.acts select{width:auto;padding:5px 6px;font-size:12.5px;border-radius:8px}
+details{position:relative}
+details summary{list-style:none}
+details summary::-webkit-details-marker{display:none}
+details .pop{position:absolute;left:0;top:calc(100% + 6px);z-index:5;background:#15181e;border:1px solid var(--line2);border-radius:12px;padding:12px;width:220px;box-shadow:0 12px 30px rgba(0,0,0,.5)}
+details .pop form{display:flex;flex-direction:column;gap:8px}
+.empty{color:var(--muted);text-align:center;padding:30px 10px}
+.search{display:flex;gap:8px;margin-bottom:14px}
+.grid>*{min-width:0}
+@media (max-width:900px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(3,1fr)}}
+@media (max-width:520px){.stats{grid-template-columns:repeat(2,1fr)}.top .btn .t{display:none}}
+</style>
+{% endblock %}
+{% block body %}
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><div class="emb">ك</div><div><b>لوحة الأدمن</b><span>إدارة اشتراكات منصة الكشف الكمركي</span></div></div>
+    <div class="sp"></div>
+    <a class="btn gold" href="{{ url_for('index') }}">فتح المنصة</a>
+    <a class="btn" href="{{ url_for('change_password') }}">كلمة المرور</a>
+    <a class="btn" href="{{ url_for('logout') }}">خروج</a>
+  </div>
+
+  {% include "_flash.html" %}
+
+  <div class="stats">
+    <div class="stat"><span>كل المشتركين</span><b>{{ stats.total }}</b></div>
+    <div class="stat"><span>فعّال</span><b style="color:var(--ok)">{{ stats.active }}</b></div>
+    <div class="stat"><span>ينتهي خلال 7 أيام</span><b style="color:var(--warn)">{{ stats.expiring }}</b></div>
+    <div class="stat"><span>منتهي</span><b style="color:var(--bad)">{{ stats.expired }}</b></div>
+    <div class="stat"><span>موقوف</span><b style="color:var(--muted)">{{ stats.stopped }}</b></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>إضافة اشتراك جديد</h2>
+      <form method="post" action="{{ url_for('admin_add') }}" autocomplete="off">
+        <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+        <div class="f"><label>اسم المستخدم *</label><input name="username" required></div>
+        <div class="f"><label>كلمة المرور *</label>
+          <div style="display:flex;gap:6px"><input name="password" id="pw" required minlength="4" class="mono"><button type="button" class="btn sm" id="gen">توليد</button></div></div>
+        <div class="f"><label>مدة الاشتراك (بالأيام) *</label>
+          <input name="days" id="days" type="number" min="1" max="3650" value="30" required class="mono">
+          <div class="chips" id="chips">
+            <button type="button" data-d="7">أسبوع</button><button type="button" data-d="30" class="on">شهر</button>
+            <button type="button" data-d="90">3 أشهر</button><button type="button" data-d="180">6 أشهر</button><button type="button" data-d="365">سنة</button>
+          </div></div>
+        <div class="f"><label>الاسم الكامل</label><input name="full_name"></div>
+        <div class="f"><label>رقم الهاتف</label><input name="phone" inputmode="tel" class="mono"></div>
+        <div class="f"><label>ملاحظات</label><input name="notes"></div>
+        <button class="btn gold" style="width:100%;padding:11px;margin-top:4px">إضافة المشترك</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <form class="search" method="get">
+        <input name="q" value="{{ query }}" placeholder="بحث بالاسم أو اسم المستخدم أو الهاتف">
+        <button class="btn">بحث</button>{% if query %}<a class="btn" href="{{ url_for('admin') }}">مسح</a>{% endif %}
+      </form>
+      <div class="tbl">
+      {% if users %}
+      <table>
+        <thead><tr><th>المشترك</th><th>الحالة</th><th>ينتهي في</th><th>المتبقي</th><th>آخر دخول</th><th>إجراءات</th></tr></thead>
+        <tbody>
+        {% for u in users %}
+        <tr>
+          <td class="u"><b>{{ u.username }}</b><small>{{ u.full_name or '' }}{% if u.phone %} · <span class="mono">{{ u.phone }}</span>{% endif %}</small>{% if u.notes %}<small style="display:block">{{ u.notes }}</small>{% endif %}</td>
+          <td>
+            {% if u.status == 'stopped' %}<span class="badge b-stopped"><i></i>موقوف</span>
+            {% elif u.status == 'expired' %}<span class="badge b-expired"><i></i>منتهي</span>
+            {% elif u.status == 'expiring' %}<span class="badge b-expiring"><i></i>قارب الانتهاء</span>
+            {% else %}<span class="badge b-active"><i></i>فعّال</span>{% endif %}
+          </td>
+          <td class="mono">{{ u.end_date }}</td>
+          <td class="mono">{% if u.days >= 0 %}{{ u.days }} يوم{% else %}<span style="color:var(--bad)">منذ {{ -u.days }} يوم</span>{% endif %}</td>
+          <td class="mono" style="color:var(--muted);font-size:12.5px">{{ u.last_login or '—' }}</td>
+          <td><div class="acts">
+            <form method="post" action="{{ url_for('admin_renew', uid=u.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <select name="days"><option value="30">+ شهر</option><option value="90">+ 3 أشهر</option><option value="180">+ 6 أشهر</option><option value="365">+ سنة</option><option value="7">+ أسبوع</option></select>
+              <button class="btn sm gold">تجديد</button>
+            </form>
+            <form method="post" action="{{ url_for('admin_toggle', uid=u.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <button class="btn sm">{{ 'تفعيل' if not u.is_active else 'إيقاف' }}</button>
+            </form>
+            <details>
+              <summary class="btn sm">المزيد</summary>
+              <div class="pop">
+                <form method="post" action="{{ url_for('admin_password', uid=u.id) }}">
+                  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+                  <label style="margin:0">كلمة مرور جديدة</label>
+                  <input name="password" required minlength="4" class="mono">
+                  <button class="btn sm">تغيير كلمة المرور</button>
+                </form>
+                <form method="post" action="{{ url_for('admin_kick', uid=u.id) }}" style="margin-top:8px">
+                  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+                  <button class="btn sm" style="width:100%">تسجيل خروج من الأجهزة</button>
+                </form>
+                <form method="post" action="{{ url_for('admin_delete', uid=u.id) }}" style="margin-top:8px" data-msg="حذف المشترك «{{ u.username }}» نهائياً؟" onsubmit="return confirm(this.dataset.msg)">
+                  <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+                  <button class="btn sm danger" style="width:100%">حذف المشترك</button>
+                </form>
+              </div>
+            </details>
+          </div></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">{% if query %}لا توجد نتائج لـ «{{ query }}»{% else %}لا يوجد مشتركون بعد. أضف أول مشترك من النموذج.{% endif %}</div>
+      {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+const days=document.getElementById('days'),chips=document.querySelectorAll('#chips button');
+chips.forEach(b=>b.onclick=()=>{days.value=b.dataset.d;chips.forEach(c=>c.classList.toggle('on',c===b));});
+days.oninput=()=>chips.forEach(c=>c.classList.toggle('on',c.dataset.d===days.value));
+document.getElementById('gen').onclick=()=>{const a='abcdefghjkmnpqrstuvwxyz23456789';let s='';const r=crypto.getRandomValues(new Uint32Array(8));r.forEach(n=>s+=a[n%a.length]);document.getElementById('pw').value=s;};
+document.addEventListener('click',e=>document.querySelectorAll('details[open]').forEach(d=>{if(!d.contains(e.target))d.removeAttribute('open')}));
+</script>
+{% endblock %}
