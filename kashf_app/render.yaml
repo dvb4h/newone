@@ -1,0 +1,32 @@
+# Blueprint لتطبيق اشتراكات منصة الكشف الكمركي (منفصل عن tariff-subscription-app)
+services:
+  - type: web
+    name: kashf-subscriptions
+    runtime: python
+    plan: free
+    region: oregon
+    repo: https://github.com/dvb4h/newone
+    branch: claude/eloquent-volta-vmrhom
+    buildCommand: pip install -r kashf_app/requirements.txt
+    startCommand: gunicorn --chdir kashf_app app:app
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: kashf-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: PYTHON_VERSION
+        value: 3.12.7
+
+databases:
+  - name: kashf-db
+    plan: free
+    region: oregon
+    postgresMajorVersion: "17"
+    databaseName: kashf_db
+    user: kashf_db_user
