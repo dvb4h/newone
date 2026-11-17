@@ -1,32 +1,45 @@
-# تشغيل أسيكودا العالمي (العراق) على الجوال
+# محرك أسيكودا المفتوح — المرحلة 1 (التجربة على الجوال)
 
-برنامج أسيكودا (`AWIQWorld.jnlp`) هو برنامج **Java Swing** للحاسوب، يتصل بالسيرفر
-`asy.mof.gov.iq` على المنفذ **2006**. أندرويد ما يدعم Java Swing مباشرة،
-لذلك هذا السكربت يشغّل نظام Linux صغير (Debian) داخل تطبيق **Termux**، ويثبّت فيه
-Java 8، ويعرض البرنامج على شاشة افتراضية (VNC) تفتحها من الجوال نفسه.
+يشغّل برنامج **أسيكودا العالمي (العراق)** على أندرويد باستخدام مكونات مفتوحة المصدر فقط:
+
+| المكوّن | الوظيفة |
+|---|---|
+| Termux + proot-distro (Debian) | بيئة Linux داخل الجوال |
+| Eclipse Temurin **Java 8** | تشغيل برنامج أسيكودا |
+| **Termux:X11** | شاشة عرض الواجهة (Swing) |
+| `asycuda-jnlp-shim.jar` (مكتبتنا — `engine/jnlp-shim`) | بديل مكتبة `javax.jnlp` الخاصة بـ Java Web Start |
+
+مكتبات أسيكودا (131 ملف `.jar`) **لا تُضمَّن** — تُنزَّل مباشرة من سيرفر الوزارة `asy.mof.gov.iq`.
 
 ## المتطلبات
-- جوال أندرويد **64-bit** (arm64)، وفيه **4GB RAM** على الأقل، و**3GB** مساحة فارغة.
-- تطبيق **Termux** من F-Droid (نسخة Google Play قديمة ولا تشتغل).
-- تطبيق عارض VNC مثل **AVNC** أو **RealVNC Viewer**.
+- جوال أندرويد 64-bit، رام 4GB أو أكثر، 3GB مساحة فارغة.
+- **اتصال إنترنت عراقي** (يفضّل بيانات الجوال 4G).
+- تطبيق **Termux** من F-Droid: https://f-droid.org/packages/com.termux/
+- تطبيق **Termux:X11** (ملف `app-arm64-v8a-debug.apk`): https://github.com/termux/termux-x11/releases/tag/nightly
 
 ## التثبيت (مرة واحدة)
-داخل Termux:
+انسخ `install-asycuda.sh` للجوال، ثم في Termux:
 ```bash
-curl -LO https://raw.githubusercontent.com/dvb4h/newone/claude/amazing-lamport-rttgyw/termux/install-asycuda.sh
-bash install-asycuda.sh
+termux-setup-storage
+bash ~/storage/downloads/install-asycuda.sh
 ```
-(إذا المستودع خاص، انسخ الملف `install-asycuda.sh` للجوال يدوياً.)
 
-## التشغيل
-1. في Termux اكتب: `asycuda`
-2. افتح تطبيق VNC واتصل بـ `localhost:5901` (بدون كلمة مرور).
-3. راح تطلع شاشة دخول أسيكودا، وتدخل باسم المستخدم وكلمة المرور مالتك.
+## الأوامر
+| الأمر | الوظيفة |
+|---|---|
+| `asycuda` | تشغيل أسيكودا على شاشة Termux:X11 |
+| `asycuda-vnc` | تشغيل على VNC (بديل إذا لم يعمل X11) — اتصل بـ `localhost:5901` |
+| `asycuda-check` | فحص DNS + HTTPS + منفذ 2006 |
+| `asycuda-log` | عرض السجل ونسخه إلى `Download/asycuda.log` |
+| `asycuda-update` | إعادة تنزيل مكتبات أسيكودا (بعد تحديث الوزارة) |
+| `asycuda-stop` | إيقاف كل شيء |
 
-للإيقاف: `asycuda-stop`
+## عند حدوث مشكلة
+شغّل `asycuda-check` ثم `asycuda-log`، وأرسل الناتج (أو ملف `Download/asycuda.log`).
 
-## ملاحظات
-- أول تشغيل يكون بطيء لأن Java تحمّل أكثر من 130 مكتبة.
-- إذا ظهر خطأ، راجع ملف السجل: `proot-distro login debian -- cat /root/asycuda/asycuda.log`
-- لتحديث مكتبات البرنامج بعد تحديث السيرفر، أعد تشغيل `bash install-asycuda.sh`.
-- قد لا يقبل السيرفر الاتصال إلا من داخل العراق.
+## للمطوّرين
+بعد تعديل `engine/jnlp-shim` أو `termux/install-asycuda.template.sh` شغّل:
+```bash
+engine/build.sh
+```
+(يولّد `termux/install-asycuda.sh` مع المكتبة مدمجة بداخله.)
