@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/action_reload" android:title="تحديث" android:showAsAction="ifRoom" />
+    <item android:id="@+id/action_home" android:title="الصفحة الرئيسية" />
+    <item android:id="@+id/action_desktop" android:title="وضع سطح المكتب" android:checkable="true" />
+    <item android:id="@+id/action_change_url" android:title="تغيير رابط البوابة" />
+    <item android:id="@+id/action_open_browser" android:title="فتح في المتصفح" />
+    <item android:id="@+id/action_clear" android:title="مسح بيانات الدخول والكاش" />
+</menu>
