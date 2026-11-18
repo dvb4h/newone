@@ -254,6 +254,11 @@ def change_password():
 
 # ---------------------------------------------------------------- منصة الكشف
 _HTML_CACHE = {}
+# رقم إصدار لسكربت حجم الخط حتى يحمّل المتصفح النسخة الجديدة بعد كل تعديل
+try:
+    FS_VER = int(os.path.getmtime(os.path.join(BASE_DIR, "static", "fontsize.js")))
+except OSError:
+    FS_VER = 0
 CRUMB_RE = re.compile(r'<div class="crumb">.*?</div>', re.S)
 
 
@@ -321,6 +326,7 @@ def render_form(idx):
     html = form_html(filename)
     html = CRUMB_RE.sub(lambda m: tabs_html, html, count=1)
     html = html.replace("</header>", bar, 1)
+    html = html.replace("</body>", f'<script src="/static/fontsize.js?v={FS_VER}"></script></body>', 1)
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store"
     return resp
