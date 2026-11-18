@@ -12,6 +12,13 @@
     try { if (typeof state !== "undefined" && state) return JSON.parse(JSON.stringify(state)); } catch (e) {}
     try { return JSON.parse(localStorage.getItem(C.key) || "{}") || {}; } catch (e) { return {}; }
   }
+  // تُحفظ مربعات النص داخل بيانات الورقة تحت المفتاح __tb
+  function payloadData() {
+    try { if (window.KASHF_TB) window.KASHF_TB.flush(); } catch (e) {}
+    const d = currentData();
+    try { d.__tb = JSON.parse(localStorage.getItem(C.tbKey) || "[]") || []; } catch (e) { d.__tb = []; }
+    return d;
+  }
   function currentFs() { try { return JSON.parse(localStorage.getItem(C.fsKey) || "[]") || []; } catch (e) { return []; } }
   const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -134,7 +141,7 @@
     if (!name) { err.textContent = "اكتب اسماً للورقة."; nameIn.focus(); return; }
     busy(true); err.textContent = "";
     try {
-      const j = await send("/api/docs", { form: C.form, name, data: currentData(), fs: currentFs() });
+      const j = await send("/api/docs", { form: C.form, name, data: payloadData(), fs: currentFs() });
       setCur({ id: j.id, name: j.name });
       close(); say(`حُفظت «${j.name}» في المحفوظات ✓`);
     } catch (e) { err.textContent = e.message; } finally { busy(false); }
@@ -143,7 +150,7 @@
     const cur = getCur(); if (!cur) return open();
     busy(true); err.textContent = "";
     try {
-      const j = await send("/api/docs/" + cur.id, { data: currentData(), fs: currentFs() });
+      const j = await send("/api/docs/" + cur.id, { data: payloadData(), fs: currentFs() });
       setCur({ id: j.id, name: j.name });
       close(); say(`حُفظت التعديلات على «${j.name}» ✓`);
     } catch (e) {

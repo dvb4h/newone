@@ -282,6 +282,7 @@ def static_ver(name):
 
 FS_VER = static_ver("fontsize.js")
 ARCH_VER = static_ver("archive.js")
+TB_VER = static_ver("textboxes.js")
 IC_FOLDER = ('<svg class="ic" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5'
              'a2 2 0 0 1-2-2z"/></svg>')
 IC_SAVE = ('<svg class="ic" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>'
@@ -332,11 +333,13 @@ def render_form(idx):
         doc = {"id": row["id"], "name": row["name"],
                "data": json.loads(row["data"]), "fs": json.loads(row["fontsizes"] or "[]")}
     cfg = {"form": idx + 1, "path": form_path, "key": form_key,
-           "fsKey": "kashf-fontsizes:" + form_path, "csrf": csrf_token(), "doc": doc}
+           "fsKey": "kashf-fontsizes:" + form_path,
+           "tbKey": "kashf-textboxes:" + form_path, "csrf": csrf_token(), "doc": doc}
     preload = (
         "<script>(function(){var C=window.KASHF=" + script_json(cfg) + ";"
         "var cur='kashf-doc:'+C.path;"
-        "try{if(C.doc){localStorage.setItem(C.key,JSON.stringify(C.doc.data));"
+        "try{if(C.doc){var d=C.doc.data||{},tb=d.__tb||[];delete d.__tb;"
+        "localStorage.setItem(C.key,JSON.stringify(d));localStorage.setItem(C.tbKey,JSON.stringify(tb));"
         "localStorage.setItem(C.fsKey,JSON.stringify(C.doc.fs||[]));"
         "sessionStorage.setItem(cur,JSON.stringify({id:C.doc.id,name:C.doc.name}));"
         "history.replaceState(null,'',C.path);}}catch(e){}"
@@ -395,6 +398,7 @@ def render_form(idx):
     html = html.replace("</header>", bar, 1)
     html = html.replace("<body>", "<body>" + preload, 1)
     html = html.replace("</body>", f'<script src="/static/fontsize.js?v={FS_VER}"></script>'
+                                   f'<script src="/static/textboxes.js?v={TB_VER}"></script>'
                                    f'<script src="/static/archive.js?v={ARCH_VER}"></script></body>', 1)
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store"
