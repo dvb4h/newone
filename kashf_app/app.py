@@ -30,7 +30,7 @@ from markupsafe import escape
 from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-KASHF_DIR = os.path.join(BASE_DIR, "..", "kashf")
+KASHF_DIR = os.path.join(BASE_DIR, "forms")
 # الاستمارات المتاحة: (المسار، اسم الملف، الاسم المعروض)
 FORMS = [
     ("/", "index.html", "استمارة الكشف"),
