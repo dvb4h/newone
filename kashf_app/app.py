@@ -16,6 +16,7 @@ Flask + قاعدة بيانات (PostgreSQL عبر DATABASE_URL، أو SQLite م
 
 import os
 import re
+import json
 import secrets
 import sqlite3
 from datetime import datetime, date, timedelta
@@ -24,7 +25,7 @@ from zoneinfo import ZoneInfo
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, g, abort, Response,
+    session, flash, g, abort, Response, jsonify,
 )
 from markupsafe import escape
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -32,10 +33,13 @@ from werkzeug.security import generate_password_hash, check_password_hash
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 KASHF_DIR = os.path.join(BASE_DIR, "forms")
 # الاستمارات المتاحة: (المسار، اسم الملف، الاسم المعروض)
+# (المسار، اسم الملف، الاسم المعروض، مفتاح حفظ بيانات الاستمارة في المتصفح)
 FORMS = [
-    ("/", "index.html", "استمارة الكشف"),
-    ("/form2", "form2.html", "استمارة كشف نموذج 2"),
+    ("/", "index.html", "استمارة الكشف", "customs-form-v2"),
+    ("/form2", "form2.html", "استمارة كشف نموذج 2", "customs-form-model2-v1"),
 ]
+MAX_DOC_BYTES = 300_000      # حد حجم الورقة المحفوظة الواحدة
+MAX_DOCS_PER_USER = 3000
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 SQLITE_PATH = os.path.join(BASE_DIR, "kashf.db")
 TZ = ZoneInfo("Asia/Baghdad")
@@ -104,6 +108,17 @@ def init_db():
             last_login TEXT,
             created_at TEXT
         )""")
+    q(f"""CREATE TABLE IF NOT EXISTS saved_docs (
+            id {id_col},
+            user_id INTEGER NOT NULL,
+            form INTEGER NOT NULL,
+            name TEXT NOT NULL,
+            data TEXT NOT NULL,
+            fontsizes TEXT NOT NULL DEFAULT '[]',
+            created_at TEXT,
+            updated_at TEXT
+        )""")
+    q("CREATE INDEX IF NOT EXISTS idx_saved_docs_user ON saved_docs (user_id)")
     admin = q("SELECT id FROM users WHERE role = 'admin'", one=True)
     if admin is None:
         username = os.environ.get("ADMIN_USERNAME", "admin").strip() or "admin"
@@ -155,7 +170,8 @@ app.jinja_env.globals["csrf_token"] = csrf_token
 def load_user_and_check():
     g.user = None
     if request.method == "POST" and request.endpoint != "login":
-        if not session.get("csrf") or request.form.get("csrf") != session.get("csrf"):
+        sent = request.headers.get("X-CSRF") or request.form.get("csrf")
+        if not session.get("csrf") or sent != session.get("csrf"):
             abort(400)
 
     uid = session.get("user_id")
@@ -254,11 +270,29 @@ def change_password():
 
 # ---------------------------------------------------------------- منصة الكشف
 _HTML_CACHE = {}
-# رقم إصدار لسكربت حجم الخط حتى يحمّل المتصفح النسخة الجديدة بعد كل تعديل
-try:
-    FS_VER = int(os.path.getmtime(os.path.join(BASE_DIR, "static", "fontsize.js")))
-except OSError:
-    FS_VER = 0
+
+
+def static_ver(name):
+    """رقم إصدار للملفات الثابتة حتى يحمّل المتصفح النسخة الجديدة بعد كل تعديل."""
+    try:
+        return int(os.path.getmtime(os.path.join(BASE_DIR, "static", name)))
+    except OSError:
+        return 0
+
+
+FS_VER = static_ver("fontsize.js")
+ARCH_VER = static_ver("archive.js")
+IC_FOLDER = ('<svg class="ic" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5'
+             'a2 2 0 0 1-2-2z"/></svg>')
+IC_SAVE = ('<svg class="ic" viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>'
+           '<path d="M17 21v-8H7v8M7 3v5h8"/></svg>')
+
+
+def script_json(obj):
+    """JSON آمن للتضمين داخل وسم <script>."""
+    return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/").replace("\u2028", "\\u2028")
+
+
 CRUMB_RE = re.compile(r'<div class="crumb">.*?</div>', re.S)
 
 
@@ -282,18 +316,44 @@ def form2():
 
 
 def render_form(idx):
-    _, filename, _ = FORMS[idx]
+    form_path, filename, _, form_key = FORMS[idx]
     u = g.user
+
+    # فتح ورقة من المحفوظات: ?doc=<id>
+    doc = None
+    doc_id = request.args.get("doc", type=int)
+    if doc_id:
+        row = q("SELECT * FROM saved_docs WHERE id = ? AND user_id = ?", (doc_id, u["id"]), one=True)
+        if row is None:
+            flash("الورقة غير موجودة في محفوظاتك.", "error")
+            return redirect(url_for("archive"))
+        if row["form"] != idx + 1:
+            return redirect(f'{FORMS[row["form"] - 1][0]}?doc={doc_id}')
+        doc = {"id": row["id"], "name": row["name"],
+               "data": json.loads(row["data"]), "fs": json.loads(row["fontsizes"] or "[]")}
+    cfg = {"form": idx + 1, "path": form_path, "key": form_key,
+           "fsKey": "kashf-fontsizes:" + form_path, "csrf": csrf_token(), "doc": doc}
+    preload = (
+        "<script>(function(){var C=window.KASHF=" + script_json(cfg) + ";"
+        "var cur='kashf-doc:'+C.path;"
+        "try{if(C.doc){localStorage.setItem(C.key,JSON.stringify(C.doc.data));"
+        "localStorage.setItem(C.fsKey,JSON.stringify(C.doc.fs||[]));"
+        "sessionStorage.setItem(cur,JSON.stringify({id:C.doc.id,name:C.doc.name}));"
+        "history.replaceState(null,'',C.path);}}catch(e){}"
+        "delete C.doc;})();</script>"
+    )
     ic_user = ('<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/>'
                '<path d="M4 21a8 8 0 0 1 16 0"/></svg>')
     ic_out = ('<svg class="ic" viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>'
               '<path d="M10 17l-5-5 5-5M5 12h11"/></svg>')
     style = ('<style>.acct{text-decoration:none;color:inherit}'
+             '@media (max-width:1500px){.acct.ico .lbl,.top .chip .pg,.top .chip .sep,#print kbd,.forms .la{display:none}'
+             '.acct.ico{padding-inline:10px}}'
              '@media (max-width:1000px){.acct .lbl{display:none}.acct{padding-inline:10px}}'
              '@media (max-width:520px){.top .chip,#print .lbl{display:none}}'
              '@media print{.acct{display:none!important}}</style>')
     if u["role"] == "admin":
-        info = f'<a class="btn acct" href="/admin" title="لوحة الأدمن">{ic_user}<span class="lbl">لوحة الأدمن</span></a>'
+        info = f'<a class="btn acct ico" href="/admin" title="لوحة الأدمن">{ic_user}<span class="lbl">لوحة الأدمن</span></a>'
     else:
         days = remaining_days(u)
         color = "#ff6b5b" if days <= 3 else ("#f1cd85" if days <= 7 else "#41cf8f")
@@ -301,14 +361,17 @@ def render_form(idx):
         info = (f'<span class="btn acct" title="{escape(u["username"])} · {label} · ينتهي في {escape(u["end_date"])}" '
                 f'style="cursor:default;color:{color}">{ic_user}'
                 f'<span class="lbl" style="color:var(--text)">{escape(u["username"])} · {label}</span></span>')
-    bar = (f'{style}{info}<a class="btn acct" href="/logout" title="تسجيل الخروج">{ic_out}'
+    save_btn = (f'<button class="btn acct ico" id="kSave" type="button" title="حفظ في المحفوظات (Ctrl+S)">'
+                f'{IC_SAVE}<span class="lbl">حفظ</span></button>')
+    bar = (f'{style}{save_btn}{info}<a class="btn acct ico" href="/logout" title="تسجيل الخروج">{ic_out}'
            f'<span class="lbl">خروج</span></a></header>')
     tabs = "".join(
         f'<a href="{p}"{on}><span class="lf">{escape(name)}</span>'
         f'<span class="ls">نموذج {i + 1}</span></a>'
-        for i, (p, _, name) in enumerate(FORMS)
+        for i, (p, _, name, _k) in enumerate(FORMS)
         for on in [' class="on"' if i == idx else ""]
-    )
+    ) + (f'<a href="/archive" class="arch" title="المحفوظات">{IC_FOLDER}'
+         f'<span class="la">المحفوظات</span></a>')
     tabs_html = (
         '<style>.forms{display:flex;gap:3px;padding:3px;border:1px solid var(--line2);border-radius:11px;'
         'background:rgba(0,0,0,.25);margin-inline-start:6px}'
@@ -317,6 +380,10 @@ def render_form(idx):
         '.forms a:hover{color:var(--text)}'
         '.forms a.on{background:var(--gold-soft);color:var(--gold2);font-weight:600}'
         '.forms .ls{display:none}'
+        '.forms .arch{display:flex;align-items:center;gap:6px;border-inline-start:1px solid var(--line2);'
+        'border-radius:0 8px 8px 0;margin-inline-start:2px}'
+        '.forms .arch .ic{width:16px;height:16px}'
+        '@media (max-width:700px){.forms .la{display:none}}'
         '@media (max-width:1400px){.forms .lf{display:none}.forms .ls{display:inline}}'
         '.top .btn{white-space:nowrap}'
         '@media (max-width:560px){.top .brand .t{display:none}.forms a{padding:6px 8px;font-size:12px}}'
@@ -326,10 +393,120 @@ def render_form(idx):
     html = form_html(filename)
     html = CRUMB_RE.sub(lambda m: tabs_html, html, count=1)
     html = html.replace("</header>", bar, 1)
-    html = html.replace("</body>", f'<script src="/static/fontsize.js?v={FS_VER}"></script></body>', 1)
+    html = html.replace("<body>", "<body>" + preload, 1)
+    html = html.replace("</body>", f'<script src="/static/fontsize.js?v={FS_VER}"></script>'
+                                   f'<script src="/static/archive.js?v={ARCH_VER}"></script></body>', 1)
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store"
     return resp
+
+
+# ---------------------------------------------------------------- المحفوظات
+def doc_summary(data):
+    """سطر مختصر يعرّف الورقة في قائمة المحفوظات."""
+    try:
+        d = json.loads(data)
+    except ValueError:
+        return ""
+    parts = [d.get("material"), d.get("company"), d.get("declNo") and f"بيان {d.get('declNo')}"]
+    return " · ".join(str(p).strip() for p in parts if p and str(p).strip())
+
+
+@app.route("/archive")
+@login_required
+def archive():
+    rows = q("""SELECT id, form, name, data, created_at, updated_at FROM saved_docs
+                WHERE user_id = ? ORDER BY updated_at DESC, id DESC""", (g.user["id"],))
+    docs = [{"id": r["id"], "form": r["form"], "name": r["name"], "summary": doc_summary(r["data"]),
+             "created_at": r["created_at"], "updated_at": r["updated_at"],
+             "url": f'{FORMS[r["form"] - 1][0]}?doc={r["id"]}' if 1 <= r["form"] <= len(FORMS) else "#"}
+            for r in rows]
+    forms = [{"n": i + 1, "path": p, "name": name} for i, (p, _, name, _k) in enumerate(FORMS)]
+    return render_template("archive.html", docs=docs, forms=forms)
+
+
+def clean_name(value):
+    return " ".join(str(value or "").split())[:120]
+
+
+def doc_payload():
+    body = request.get_json(silent=True) or {}
+    data = body.get("data")
+    fs = body.get("fs") or []
+    if not isinstance(data, dict) or not isinstance(fs, list):
+        abort(400)
+    data_s, fs_s = json.dumps(data, ensure_ascii=False), json.dumps(fs, ensure_ascii=False)
+    if len(data_s) + len(fs_s) > MAX_DOC_BYTES:
+        abort(413)
+    return body, data_s, fs_s
+
+
+@app.route("/api/docs", methods=["POST"])
+@login_required
+def api_doc_create():
+    body, data_s, fs_s = doc_payload()
+    name = clean_name(body.get("name"))
+    try:
+        form = int(body.get("form"))
+    except (TypeError, ValueError):
+        form = 0
+    if not name:
+        return jsonify(error="اكتب اسماً للورقة."), 400
+    if not 1 <= form <= len(FORMS):
+        abort(400)
+    count = q("SELECT COUNT(*) AS c FROM saved_docs WHERE user_id = ?", (g.user["id"],), one=True)["c"]
+    if count >= MAX_DOCS_PER_USER:
+        return jsonify(error="وصلت للحد الأقصى من المحفوظات. احذف أوراقاً قديمة أولاً."), 400
+    now = now_str()
+    row = q("""INSERT INTO saved_docs (user_id, form, name, data, fontsizes, created_at, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id""",
+            (g.user["id"], form, name, data_s, fs_s, now, now), one=True)
+    commit()
+    return jsonify(id=row["id"], name=name, updated_at=now)
+
+
+def own_doc(doc_id):
+    row = q("SELECT * FROM saved_docs WHERE id = ? AND user_id = ?", (doc_id, g.user["id"]), one=True)
+    if row is None:
+        abort(404)
+    return row
+
+
+@app.route("/api/docs/<int:doc_id>", methods=["POST"])
+@login_required
+def api_doc_update(doc_id):
+    row = own_doc(doc_id)
+    body, data_s, fs_s = doc_payload()
+    name = clean_name(body.get("name")) or row["name"]
+    now = now_str()
+    q("UPDATE saved_docs SET data = ?, fontsizes = ?, name = ?, updated_at = ? WHERE id = ?",
+      (data_s, fs_s, name, now, doc_id))
+    commit()
+    return jsonify(id=doc_id, name=name, updated_at=now)
+
+
+@app.route("/archive/<int:doc_id>/rename", methods=["POST"])
+@login_required
+def archive_rename(doc_id):
+    own_doc(doc_id)
+    name = clean_name(request.form.get("name"))
+    if not name:
+        flash("الاسم لا يمكن أن يكون فارغاً.", "error")
+    else:
+        q("UPDATE saved_docs SET name = ? WHERE id = ?", (name, doc_id))
+        commit()
+        flash(f"تمت إعادة التسمية إلى «{name}».", "success")
+    return redirect(url_for("archive"))
+
+
+@app.route("/archive/<int:doc_id>/delete", methods=["POST"])
+@login_required
+def archive_delete(doc_id):
+    row = own_doc(doc_id)
+    q("DELETE FROM saved_docs WHERE id = ?", (doc_id,))
+    commit()
+    flash(f"تم حذف «{row['name']}» من المحفوظات.", "success")
+    return redirect(url_for("archive"))
 
 
 # ---------------------------------------------------------------- لوحة الأدمن
@@ -456,6 +633,7 @@ def admin_kick(uid):
 @admin_required
 def admin_delete(uid):
     u = get_subscriber(uid)
+    q("DELETE FROM saved_docs WHERE user_id = ?", (uid,))
     q("DELETE FROM users WHERE id = ?", (uid,))
     commit()
     flash(f"تم حذف المشترك «{u['username']}».", "success")

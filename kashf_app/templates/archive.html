@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}المحفوظات · منصة الكشف الكمركي{% endblock %}
+{% block head %}
+<style>
+.top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px}
+.top .sp{flex:1}
+.tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:16px}
+.tools .search{flex:1;min-width:220px;position:relative}
+.tools .search input{padding-inline-start:36px}
+.tools .search svg{position:absolute;inset-inline-start:12px;top:50%;transform:translateY(-50%);width:16px;height:16px;stroke:var(--muted);fill:none;stroke-width:2}
+.chips{display:flex;gap:4px;padding:3px;border:1px solid var(--line2);border-radius:11px;background:rgba(0,0,0,.25)}
+.chips button{border:0;background:none;color:var(--muted);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:13px;white-space:nowrap}
+.chips button.on{background:var(--gold-soft);color:var(--gold2);font-weight:600}
+.chips button span{font-family:var(--mono);font-size:11px;margin-inline-start:6px;padding:1px 7px;border-radius:999px;background:rgba(255,255,255,.08)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.doc{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px;transition:border-color .15s,transform .15s}
+.doc:hover{border-color:rgba(212,165,78,.35)}
+.doc .hd{display:flex;align-items:flex-start;gap:10px}
+.doc .fi{width:38px;height:38px;flex:none;border-radius:10px;background:var(--gold-soft);border:1px solid rgba(212,165,78,.3);display:grid;place-items:center}
+.doc .fi svg{width:18px;height:18px;stroke:var(--gold2);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.doc .nm{flex:1;min-width:0}
+.doc .nm a{display:block;color:var(--text);text-decoration:none;font-weight:600;font-size:15px;line-height:1.4;overflow-wrap:anywhere}
+.doc .nm a:hover{color:var(--gold2)}
+.doc .sum{color:var(--muted);font-size:12.5px;line-height:1.5;overflow-wrap:anywhere;min-height:18px}
+.doc .meta{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;color:var(--muted)}
+.badge{font-size:11.5px;padding:2px 9px;border-radius:999px;border:1px solid var(--line2);color:var(--muted);white-space:nowrap}
+.badge.f2{border-color:rgba(40,150,170,.45);color:#7fd0dd}
+.acts{display:flex;gap:6px;border-top:1px solid var(--line);padding-top:10px}
+.acts .open{flex:1}
+details{position:relative}
+details summary{list-style:none}
+details summary::-webkit-details-marker{display:none}
+details .pop{position:absolute;inset-inline-end:0;top:calc(100% + 6px);z-index:5;background:#15181e;border:1px solid var(--line2);border-radius:12px;padding:12px;width:250px;box-shadow:0 12px 30px rgba(0,0,0,.5)}
+details .pop form{display:flex;flex-direction:column;gap:8px}
+.empty{text-align:center;padding:60px 16px;color:var(--muted)}
+.empty b{display:block;color:var(--text);font-size:16px;margin-bottom:6px}
+.none{display:none;text-align:center;color:var(--muted);padding:30px}
+@media (max-width:520px){.top .btn .t{display:none}}
+</style>
+{% endblock %}
+{% block body %}
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8"/></symbol>
+</svg>
+<div class="wrap">
+  <div class="top">
+    <div class="brand"><div class="emb">ك</div><div><b>المحفوظات</b><span>أوراق الكشف التي حفظتها · {{ g.user.username }}</span></div></div>
+    <div class="sp"></div>
+    {% for f in forms %}<a class="btn" href="{{ f.path }}">{{ f.name }}</a>{% endfor %}
+    {% if g.user.role == 'admin' %}<a class="btn" href="{{ url_for('admin') }}">لوحة الأدمن</a>{% endif %}
+    <a class="btn" href="{{ url_for('logout') }}">خروج</a>
+  </div>
+
+  {% include "_flash.html" %}
+
+  {% if docs %}
+  <div class="tools">
+    <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input id="q" type="search" placeholder="ابحث باسم الورقة أو المادة أو الشركة" autocomplete="off"></label>
+    <div class="chips" id="chips">
+      <button type="button" data-f="0" class="on">الكل<span>{{ docs|length }}</span></button>
+      {% for f in forms %}<button type="button" data-f="{{ f.n }}"><bdi>نموذج {{ f.n }}</bdi><span>{{ docs|selectattr('form','equalto',f.n)|list|length }}</span></button>{% endfor %}
+    </div>
+  </div>
+  <div class="grid" id="grid">
+    {% for d in docs %}
+    <div class="doc" data-form="{{ d.form }}" data-q="{{ (d.name ~ ' ' ~ d.summary)|lower }}">
+      <div class="hd">
+        <div class="fi"><svg><use href="#i-doc"/></svg></div>
+        <div class="nm"><a href="{{ d.url }}">{{ d.name }}</a></div>
+        <span class="badge {{ 'f2' if d.form == 2 }}">نموذج {{ d.form }}</span>
+      </div>
+      <div class="sum">{{ d.summary or '—' }}</div>
+      <div class="meta"><span>آخر تعديل: <span class="mono">{{ d.updated_at }}</span></span></div>
+      <div class="acts">
+        <a class="btn gold sm open" href="{{ d.url }}">فتح الورقة</a>
+        <details>
+          <summary class="btn sm">إعادة تسمية</summary>
+          <div class="pop">
+            <form method="post" action="{{ url_for('archive_rename', doc_id=d.id) }}">
+              <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+              <label style="margin:0">الاسم الجديد</label>
+              <input name="name" value="{{ d.name }}" required maxlength="120">
+              <button class="btn sm gold">حفظ الاسم</button>
+            </form>
+          </div>
+        </details>
+        <form method="post" action="{{ url_for('archive_delete', doc_id=d.id) }}" style="margin:0" data-msg="حذف «{{ d.name }}» من المحفوظات نهائياً؟" onsubmit="return confirm(this.dataset.msg)">
+          <input type="hidden" name="csrf" value="{{ csrf_token() }}">
+          <button class="btn sm danger">حذف</button>
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="none" id="none">لا توجد أوراق مطابقة.</div>
+  {% else %}
+  <div class="card empty">
+    <b>لا توجد أوراق محفوظة بعد</b>
+    افتح أي استمارة، عبّئها، ثم اضغط زر <b style="display:inline;color:var(--gold2);font-size:inherit">حفظ</b> أعلى الصفحة (أو Ctrl + S) وسمّها باسم تختاره.
+    <div style="margin-top:18px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
+      {% for f in forms %}<a class="btn gold" href="{{ f.path }}">{{ f.name }}</a>{% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+<script>
+(function(){
+  const q=document.getElementById('q'); if(!q) return;
+  const cards=[...document.querySelectorAll('.doc')], chips=[...document.querySelectorAll('#chips button')], none=document.getElementById('none');
+  let form=0;
+  function run(){ const t=q.value.trim().toLowerCase(); let n=0;
+    cards.forEach(c=>{ const ok=(!form||+c.dataset.form===form)&&(!t||c.dataset.q.includes(t)); c.style.display=ok?'':'none'; if(ok)n++; });
+    none.style.display=n?'none':'block'; }
+  q.addEventListener('input',run);
+  chips.forEach(b=>b.onclick=()=>{ form=+b.dataset.f; chips.forEach(c=>c.classList.toggle('on',c===b)); run(); });
+  document.addEventListener('click',e=>document.querySelectorAll('details[open]').forEach(d=>{if(!d.contains(e.target))d.removeAttribute('open')}));
+})();
+</script>
+{% endblock %}
