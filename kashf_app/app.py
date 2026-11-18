@@ -15,6 +15,7 @@ Flask + قاعدة بيانات (PostgreSQL عبر DATABASE_URL، أو SQLite م
 """
 
 import os
+import re
 import secrets
 import sqlite3
 from datetime import datetime, date, timedelta
@@ -29,7 +30,12 @@ from markupsafe import escape
 from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-KASHF_HTML = os.path.join(BASE_DIR, "..", "kashf", "index.html")
+KASHF_DIR = os.path.join(BASE_DIR, "..", "kashf")
+# الاستمارات المتاحة: (المسار، اسم الملف، الاسم المعروض)
+FORMS = [
+    ("/", "index.html", "استمارة الكشف"),
+    ("/form2", "form2.html", "استمارة كشف نموذج 2"),
+]
 DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 SQLITE_PATH = os.path.join(BASE_DIR, "kashf.db")
 TZ = ZoneInfo("Asia/Baghdad")
@@ -247,20 +253,31 @@ def change_password():
 
 
 # ---------------------------------------------------------------- منصة الكشف
-_KASHF_CACHE = None
+_HTML_CACHE = {}
+CRUMB_RE = re.compile(r'<div class="crumb">.*?</div>', re.S)
 
 
-def kashf_html():
-    global _KASHF_CACHE
-    if _KASHF_CACHE is None:
-        with open(KASHF_HTML, encoding="utf-8") as f:
-            _KASHF_CACHE = f.read()
-    return _KASHF_CACHE
+def form_html(filename):
+    if filename not in _HTML_CACHE:
+        with open(os.path.join(KASHF_DIR, filename), encoding="utf-8") as f:
+            _HTML_CACHE[filename] = f.read()
+    return _HTML_CACHE[filename]
 
 
 @app.route("/")
 @login_required
 def index():
+    return render_form(0)
+
+
+@app.route("/form2")
+@login_required
+def form2():
+    return render_form(1)
+
+
+def render_form(idx):
+    _, filename, _ = FORMS[idx]
     u = g.user
     ic_user = ('<svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/>'
                '<path d="M4 21a8 8 0 0 1 16 0"/></svg>')
@@ -281,7 +298,29 @@ def index():
                 f'<span class="lbl" style="color:var(--text)">{escape(u["username"])} · {label}</span></span>')
     bar = (f'{style}{info}<a class="btn acct" href="/logout" title="تسجيل الخروج">{ic_out}'
            f'<span class="lbl">خروج</span></a></header>')
-    html = kashf_html().replace("</header>", bar, 1)
+    tabs = "".join(
+        f'<a href="{p}"{on}><span class="lf">{escape(name)}</span>'
+        f'<span class="ls">نموذج {i + 1}</span></a>'
+        for i, (p, _, name) in enumerate(FORMS)
+        for on in [' class="on"' if i == idx else ""]
+    )
+    tabs_html = (
+        '<style>.forms{display:flex;gap:3px;padding:3px;border:1px solid var(--line2);border-radius:11px;'
+        'background:rgba(0,0,0,.25);margin-inline-start:6px}'
+        '.forms a{padding:6px 12px;border-radius:8px;font-size:13px;color:var(--muted);text-decoration:none;'
+        'white-space:nowrap;transition:background .15s,color .15s}'
+        '.forms a:hover{color:var(--text)}'
+        '.forms a.on{background:var(--gold-soft);color:var(--gold2);font-weight:600}'
+        '.forms .ls{display:none}'
+        '@media (max-width:1400px){.forms .lf{display:none}.forms .ls{display:inline}}'
+        '.top .btn{white-space:nowrap}'
+        '@media (max-width:560px){.top .brand .t{display:none}.forms a{padding:6px 8px;font-size:12px}}'
+        '@media print{.forms{display:none!important}}</style>'
+        f'<nav class="forms" aria-label="الاستمارات">{tabs}</nav>'
+    )
+    html = form_html(filename)
+    html = CRUMB_RE.sub(lambda m: tabs_html, html, count=1)
+    html = html.replace("</header>", bar, 1)
     resp = Response(html, mimetype="text/html")
     resp.headers["Cache-Control"] = "no-store"
     return resp
