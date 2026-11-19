@@ -181,7 +181,7 @@ def load_user_and_check():
     if user is None or user["session_token"] != session.get("token"):
         session.clear()
         if user is not None:
-            flash("تم تسجيل الخروج لأن الحساب استُخدم من جهاز آخر.")
+            flash("تم تسجيل خروجك من الإدارة. سجّل الدخول من جديد.")
         return
     if user["role"] != "admin" and (not user["is_active"] or remaining_days(user) < 0):
         session.clear()
@@ -229,7 +229,9 @@ def login():
             if remaining_days(user) < 0:
                 flash("انتهت مدة اشتراكك. يرجى التواصل مع الإدارة للتجديد.")
                 return redirect(url_for("login"))
-        token = secrets.token_hex(16)
+        # نفس الحساب يقدر يدخل من أكثر من جهاز/شخص بنفس الوقت: كل الأجهزة تشترك
+        # بنفس رمز الجلسة، ولا يُنشأ رمز جديد إلا إذا مسحه الأدمن (تسجيل خروج من كل الأجهزة)
+        token = user["session_token"] or secrets.token_hex(16)
         q("UPDATE users SET session_token = ?, last_login = ? WHERE id = ?",
           (token, now_str(), user["id"]))
         commit()
