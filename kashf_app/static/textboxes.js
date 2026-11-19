@@ -2,8 +2,11 @@
    تُحفظ في المتصفح لكل استمارة (ومع الورقة في المحفوظات) وتظهر في الطباعة. */
 (function () {
   "use strict";
-  const paper = document.getElementById("paper");
-  if (!paper) return;
+  // كل أوراق الاستمارة (الوجه، والظهر إن وُجد). لكل مربع رقم ورقته pg
+  const sheets = [...document.querySelectorAll(".paper")];
+  if (!sheets.length) return;
+  const sheetOfBox = (b) => sheets[b.pg || 0] || sheets[0];
+  const visibleSheet = () => sheets.find((s) => !s.classList.contains("off")) || sheets[0];
   const STORE = "kashf-textboxes:" + location.pathname;
   const MIN_W = 40, MIN_H = 22, DEF_SIZE = 14;
   const PLAIN = (() => { const d = document.createElement("div"); d.contentEditable = "plaintext-only"; return d.contentEditable === "plaintext-only"; })();
@@ -18,14 +21,14 @@
 
   /* ---------- أدوات القياس (الورقة مكبّرة/مصغّرة بـ transform) ---------- */
   function untilt() { try { if (typeof resetTilt === "function") resetTilt(); } catch (e) {} }
-  function scale() { const r = paper.getBoundingClientRect(); return r.width / paper.offsetWidth || 1; }
-  function toPaper(clientX, clientY) {
-    const r = paper.getBoundingClientRect(), s = scale();
+  function scale(sh) { sh = sh || visibleSheet(); const r = sh.getBoundingClientRect(); return r.width / sh.offsetWidth || 1; }
+  function toPaper(sh, clientX, clientY) {
+    const r = sh.getBoundingClientRect(), s = scale(sh);
     return { x: (clientX - r.left) / s, y: (clientY - r.top) / s };
   }
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   function fit(b) {
-    const W = paper.clientWidth, H = paper.clientHeight;
+    const sh = sheetOfBox(b), W = sh.clientWidth, H = sh.clientHeight;
     b.w = clamp(b.w, MIN_W, W); b.h = clamp(b.h, MIN_H, H);
     b.x = clamp(b.x, 0, W - b.w); b.y = clamp(b.y, 0, H - b.h);
   }
@@ -81,7 +84,7 @@
   let selected = null;
   const byId = (id) => boxes.find((b) => b.id === id);
   function render(b) {
-    let el = paper.querySelector(`.tb[data-id="${b.id}"]`);
+    let el = document.querySelector(`.paper .tb[data-id="${b.id}"]`);
     if (!el) {
       el = document.createElement("div");
       el.className = "tb";
@@ -93,7 +96,7 @@
       const t = el.querySelector(".tb-t");
       t.contentEditable = PLAIN ? "plaintext-only" : "true";
       t.textContent = b.text || "";
-      paper.appendChild(el);
+      sheetOfBox(b).appendChild(el);
     }
     el.style.left = b.x + "px"; el.style.top = b.y + "px";
     el.style.width = b.w + "px"; el.style.height = b.h + "px";
@@ -102,7 +105,7 @@
     t.style.color = b.color || "";
     return el;
   }
-  function syncScale() { paper.style.setProperty("--tbs", (1 / scale()).toFixed(3)); }
+  function syncScale() { const v = (1 / scale()).toFixed(3); sheets.forEach((s) => s.style.setProperty("--tbs", v)); }
   addEventListener("resize", () => setTimeout(syncScale, 50));
   ["zIn", "zOut", "zFit"].forEach((id) => { const b = document.getElementById(id); if (b) b.addEventListener("click", () => setTimeout(syncScale, 50)); });
   function select(el) {
@@ -119,8 +122,10 @@
     el.remove();
     saveNow();
   }
-  function add(x, y) {
+  function add(sh, x, y) {
+    const pg = Math.max(0, sheets.indexOf(sh));
     const b = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6), x: x - 90, y: y - 14, w: 180, h: 34, text: "", size: DEF_SIZE };
+    if (pg) b.pg = pg;
     fit(b);
     boxes.push(b);
     const el = render(b);
@@ -132,38 +137,40 @@
   function addVisible() {
     // في منتصف الجزء الظاهر من الورقة
     untilt();
+    const paper = visibleSheet();
     const r = paper.getBoundingClientRect();
     const desk = document.getElementById("desk");
     const d = desk ? desk.getBoundingClientRect() : { left: 0, top: 0, right: innerWidth, bottom: innerHeight };
     const cx = (Math.max(r.left, d.left) + Math.min(r.right, d.right)) / 2;
     const cy = (Math.max(r.top, d.top) + Math.min(r.bottom, d.bottom, innerHeight)) / 2;
-    const p = toPaper(cx, cy);
+    const p = toPaper(paper, cx, cy);
     if (document.body.classList.contains("m-prev") === false && matchMedia("(max-width:1000px)").matches && typeof setView === "function") {
       try { setView("prev"); } catch (e) {}
     }
-    return add(p.x, p.y);
+    return add(paper, p.x, p.y);
   }
 
   /* ---------- الكتابة ---------- */
-  paper.addEventListener("input", (e) => {
+  const onInput = (e) => {
     const t = e.target.closest && e.target.closest(".tb-t"); if (!t) return;
     const b = byId(t.parentElement.dataset.id); if (!b) return;
     b.text = t.innerText.replace(/\n$/, "");
     // كبّر المربع تلقائياً إذا تجاوز النص ارتفاعه
-    if (t.scrollHeight > t.clientHeight + 1) { b.h = Math.min(paper.clientHeight - b.y, t.scrollHeight + 2); render(b); }
+    if (t.scrollHeight > t.clientHeight + 1) { b.h = Math.min(sheetOfBox(b).clientHeight - b.y, t.scrollHeight + 2); render(b); }
     save();
-  });
+  };
+  sheets.forEach((sh) => sh.addEventListener("input", onInput));
   if (!PLAIN) {
-    paper.addEventListener("paste", (e) => {
+    sheets.forEach((sh) => sh.addEventListener("paste", (e) => {
       if (!e.target.closest || !e.target.closest(".tb-t")) return;
       e.preventDefault();
       document.execCommand("insertText", false, (e.clipboardData || window.clipboardData).getData("text"));
-    });
+    }));
   }
 
   /* ---------- السحب وتغيير الحجم ---------- */
   let op = null;
-  paper.addEventListener("pointerdown", (e) => {
+  const onDown = (e) => {
     const el = e.target.closest && e.target.closest(".tb");
     if (!el) { if (selected && !e.target.closest(".tb")) select(null); return; }
     select(el);
@@ -175,10 +182,11 @@
     e.preventDefault();
     untilt();
     const b = byId(el.dataset.id);
-    op = { el, b, mode: handle ? handle.dataset.dir : "move", sx: e.clientX, sy: e.clientY, s: scale(), o: { ...b }, id: e.pointerId };
+    op = { el, b, mode: handle ? handle.dataset.dir : "move", sx: e.clientX, sy: e.clientY, s: scale(sheetOfBox(b)), o: { ...b }, id: e.pointerId };
     el.classList.add("drag");
     try { el.setPointerCapture(e.pointerId); } catch (err) {}
-  });
+  };
+  sheets.forEach((sh) => sh.addEventListener("pointerdown", onDown));
   // في مرحلة الالتقاط حتى لا يتحرك منظور الورقة ثلاثي الأبعاد أثناء السحب
   addEventListener("pointermove", (e) => {
     if (!op) return;
@@ -201,7 +209,7 @@
   }
   addEventListener("pointerup", endOp, true);
   addEventListener("pointercancel", endOp, true);
-  document.addEventListener("pointerdown", (e) => { if (selected && !paper.contains(e.target) && !e.target.closest(".fsm,.tb-add-menu")) select(null); });
+  document.addEventListener("pointerdown", (e) => { if (selected && !e.target.closest(".paper,.fsm,.tb-add-menu")) select(null); });
   document.addEventListener("keydown", (e) => {
     if (!selected) return;
     const editing = document.activeElement && document.activeElement.closest && document.activeElement.closest(".tb-t");
@@ -233,8 +241,8 @@
   addMenu.className = "tb-add-menu"; addMenu.hidden = true;
   addMenu.innerHTML = `<button type="button">${IC_T}إضافة مربع نص هنا</button>`;
   document.body.appendChild(addMenu);
-  let addAt = null;
-  addMenu.querySelector("button").addEventListener("click", () => { addMenu.hidden = true; if (addAt) add(addAt.x, addAt.y); });
+  let addAt = null, addSheet = null;
+  addMenu.querySelector("button").addEventListener("click", () => { addMenu.hidden = true; if (addAt) add(addSheet, addAt.x, addAt.y); });
   document.addEventListener("pointerdown", (e) => { if (!addMenu.contains(e.target)) addMenu.hidden = true; });
   addEventListener("scroll", () => (addMenu.hidden = true), { passive: true });
 
@@ -243,7 +251,8 @@
     onContext(e) {
       e.preventDefault();
       untilt();
-      addAt = toPaper(e.clientX, e.clientY);
+      addSheet = (e.target.closest && e.target.closest(".paper")) || visibleSheet();
+      addAt = toPaper(addSheet, e.clientX, e.clientY);
       addMenu.hidden = false;
       addMenu.style.left = Math.min(e.clientX, innerWidth - addMenu.offsetWidth - 8) + "px";
       addMenu.style.top = Math.min(e.clientY, innerHeight - addMenu.offsetHeight - 8) + "px";

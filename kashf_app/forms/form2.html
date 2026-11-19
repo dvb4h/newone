@@ -333,6 +333,47 @@ table.cm td.s2{height:19mm}
   .rv{animation:none!important}
   [data-k]{background:none!important;animation:none!important;color:inherit!important;filter:none!important}
 }
+
+/* ================= back side (ظهر الاستمارة) ================= */
+.paper.off{position:absolute;top:0;left:0;visibility:hidden;pointer-events:none}
+.paper.back .bk-top .hdr{border-bottom:1.2pt solid #000;padding-bottom:3mm}
+.paper.back .bk-t1{text-align:center;font-size:14pt;font-weight:normal;text-decoration:underline;margin:7mm 0 0}
+.paper.back .bk-t2{text-align:center;font-size:14pt;text-decoration:underline;margin:13mm 0 4mm}
+table.bk{width:100%;border-collapse:collapse;table-layout:fixed}
+table.bk td{border:1.2pt solid #000;text-align:center;vertical-align:top;font-size:12pt;padding:1.2mm 2.5mm}
+table.bk tr.h td{height:9mm;vertical-align:middle}
+table.bk tr.h.t td{height:12mm}
+table.bk tr.b td{height:58mm;text-align:right;font-size:11.5pt;line-height:1.5}
+table.bk td{cursor:text}
+table.bk .ed{display:block;min-height:1.4em;white-space:pre-wrap;overflow-wrap:anywhere}
+table.bk tr.b .ed{min-height:55mm}
+.paper.back [data-lab],.paper.back [data-bk]{outline:none;cursor:text}
+.paper.back [data-lab]:empty::before{content:"اكتب اسم الدائرة";color:#b9bec5;font-weight:normal;font-size:10.5pt}
+.paper.back [data-bk]:empty::before{content:"اضغط للكتابة…";color:#c9cdd2;font-weight:normal;font-size:10pt}
+.paper.back [data-lab]:focus,.paper.back [data-bk]:focus{background:rgba(212,165,78,.10)}
+
+.sides{position:sticky;top:0;z-index:7;display:flex;justify-content:center;margin:-22px 0 12px;pointer-events:none}
+.sides .in{pointer-events:auto;display:flex;align-items:center;gap:3px;padding:4px;border-radius:13px;border:1px solid var(--line2);
+  background:rgba(18,20,25,.82);backdrop-filter:blur(14px);box-shadow:0 12px 30px -10px rgba(0,0,0,.6);font-family:var(--ui)}
+.sides button{border:0;background:none;color:var(--muted);height:32px;padding:0 12px;border-radius:9px;display:flex;align-items:center;gap:6px;font-size:13px;white-space:nowrap}
+.sides button:hover{color:var(--text);background:rgba(255,255,255,.06)}
+.sides button.on{background:var(--gold-soft);color:var(--gold2);font-weight:600}
+.sides .arr{width:32px;padding:0;justify-content:center;font-size:16px}
+.sides .arr:disabled{opacity:.3;cursor:default;background:none}
+.sides .sep{width:1px;height:18px;background:var(--line2);margin:0 3px}
+.sides label{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:12px;padding:0 8px 0 4px;cursor:pointer;white-space:nowrap}
+.sides label input{accent-color:var(--gold);width:14px;height:14px;margin:0}
+.paper.flipIn{animation:flipIn .55s var(--out) both}
+@keyframes flipIn{from{opacity:0;transform:rotateY(-14deg) translateX(18px)}}
+@media (max-width:1000px){ .sides{margin:0 0 10px} .sides .lbl2{display:none} }
+@media print{
+  .sides{display:none!important}
+  .paper.off{position:relative!important;visibility:visible!important}
+  .paper.back{break-before:page;page-break-before:always}
+  body.no-back-print .paper.back{display:none!important}
+  .paper.back [data-lab]:empty::before,.paper.back [data-bk]:empty::before{content:none}
+  .paper.back [data-lab]:focus,.paper.back [data-bk]:focus{background:none}
+}
 </style>
 </head>
 <body>
@@ -434,6 +475,14 @@ table.cm td.s2{height:19mm}
   </aside>
 
   <main class="desk" id="desk">
+    <div class="sides" id="sides"><div class="in">
+      <button type="button" class="arr" id="sidePrev" title="الوجه" aria-label="الوجه">→</button>
+      <button type="button" data-side="front" class="on">الوجه</button>
+      <button type="button" data-side="back">الظهر</button>
+      <button type="button" class="arr" id="sideNext" title="الظهر" aria-label="الظهر">←</button>
+      <span class="sep"></span>
+      <label title="عند الطباعة تُطبع ورقة الظهر بعد الوجه (لطباعة الوجهين)"><input type="checkbox" id="printBack" checked><span class="lbl2">طباعة الظهر</span></label>
+    </div></div>
     <div class="zw" id="zw"><div class="stage" id="stage">
       <div class="tilt"><div class="tilt-in" id="tilt">
       <div class="paper" id="paper">
@@ -509,6 +558,20 @@ table.cm td.s2{height:19mm}
         <div class="stamp" id="stamp"><div class="in"><div class="c2">الكمارك · المكتب 522</div><div class="a">جاهز للطباعة</div><div class="b" id="stampDate"></div></div></div>
         <div class="glare"></div>
       </div>
+      <div class="paper back off ready" id="paper2" aria-label="ظهر الاستمارة">
+        <div class="bk-top"></div>
+        <div class="bk-t1">استمارة الكشف</div>
+        <div class="bk-t2">الدوائر الساندة</div>
+        <table class="bk"><tbody>
+          <tr class="h"><td><div class="ed"></div></td><td><div class="ed"></div></td></tr>
+          <tr class="b"><td><div class="ed" data-bk="c1"></div></td><td><div class="ed" data-bk="c2"></div></td></tr>
+          <tr class="h"><td><div class="ed"></div></td><td><div class="ed"></div></td></tr>
+          <tr class="b"><td><div class="ed" data-bk="c3"></div></td><td><div class="ed" data-bk="c4"></div></td></tr>
+          <tr class="h t"><td><div class="ed"></div></td><td><div class="ed"></div></td></tr>
+          <tr class="b"><td><div class="ed" data-bk="c5"></div></td><td><div class="ed" data-bk="c6"></div></td></tr>
+        </tbody></table>
+        <div class="glare"></div>
+      </div>
       </div></div>
     </div></div>
     <div class="dock" id="dock">
@@ -534,7 +597,7 @@ const DEFAULTS = {
   company:"شركة إشراقات الخالد للنقل العام", office:"522", declNo:"", agent:"إسماعيل خالد سمير",
   date:"", procedure:"2601038187", material:"غاز النيتروجين", tons:"20", origin:"الكويت",
   invoice:"2328-2026", certificate:"260125553-1577",
-  labels:{}, refNo:"", refDate:"", certDate:"", invDate:"", usd:"", duty:"",
+  labels:{}, back:{}, refNo:"", refDate:"", certDate:"", invDate:"", usd:"", duty:"",
   car:"", seal:"",
   rows:[{rl:"",rv:"BA20113318",ll:"",lv:""},{rl:"",rv:"",ll:"",lv:""}]
 };
@@ -595,7 +658,7 @@ function buildFormRows(anim){
 
 /* ---------- paint sheet ---------- */
 function paint(onlyKey){
-  $$("#paper [data-k]").forEach(el=>{
+  $$(".paper [data-k]").forEach(el=>{
     const k=el.dataset.k; if(onlyKey && k!==onlyKey) return;
     let v;
     if(/^r\d+\./.test(k)){ const [ri,fk]=k.slice(1).split("."); v=(state.rows[+ri]||{})[fk]||""; }
@@ -731,6 +794,7 @@ let printing=false;
 function retrigger(el,cls){ el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
 function doPrint(){
   if(printing) return;
+  if(typeof side!=="undefined" && side==="back"){ setSide("front"); setTimeout(doPrint,450); return; }
   if(isMobile() && !document.body.classList.contains("m-prev")){ setView("prev"); setTimeout(doPrint,650); return; }
   printing=true;
   document.activeElement && document.activeElement.blur();
@@ -791,6 +855,20 @@ addLab("t_title",$("#paper .ttl .h"));
 const mlabs=$$("#paper .ttl .m .lab"); addLab("refNo",mlabs[0]); addLab("refDate",mlabs[1]);
 $$("#paper td.g").forEach((e,i)=>addLab(GKEYS[i]||("g"+i),e));
 addLab("t_cap",$("#paper .cap"));
+// ظهر الاستمارة: العناوين قابلة للتعديل (تبقى مع «شحنة جديدة») — الترويسة تُنسخ من الوجه
+const paper2=$("#paper2");
+paper2.querySelector(".bk-top").appendChild($("#paper .hdr").cloneNode(true));
+paper2.querySelectorAll(".bk-top .rv").forEach(e=>e.classList.remove("rv"));
+addLab("b_t1",paper2.querySelector(".bk-t1")); addLab("b_t2",paper2.querySelector(".bk-t2"));
+paper2.querySelectorAll("tr.h .ed").forEach((e,i)=>addLab("b_h"+(i+1),e));
+// النقر في أي مكان داخل الخانة يضع المؤشر في محرّرها
+paper2.querySelectorAll("table.bk td").forEach(td=>td.addEventListener("mousedown",ev=>{
+  if(ev.target!==td) return;
+  const ed=td.querySelector(".ed"); if(!ed) return;
+  ev.preventDefault(); ed.focus();
+  const r=document.createRange(); r.selectNodeContents(ed); r.collapse(false);
+  const sel=getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}));
 const cl=$$("#paper .cbox .lab"); addLab("material",cl[0]); addLab("procedure",cl[1]);
 const labDef=labEls.map(e=>e.textContent.trim());
 const FORM_LAB=new Set(["company","car","tons","origin","declNo","date","office","seal","agent","certificate","certDate","invoice","invDate","usd","duty","refNo","refDate","material","procedure"]);
@@ -812,8 +890,46 @@ labEls.forEach((e,i)=>{
   e.addEventListener("blur",()=>{ if(!e.textContent.trim()){ e.textContent=labDef[i]; if(state.labels) delete state.labels[key]; persist(); syncFormLabel(i); } });
 });
 
+/* ---------- back side: writable cells + front/back switcher ---------- */
+const bkCells=$$("#paper2 [data-bk]");
+function applyBack(){
+  if(!state.back || typeof state.back!=="object") state.back={};
+  bkCells.forEach(c=>{ const v=state.back[c.dataset.bk]||""; if(c.innerText!==v) c.textContent=v; });
+}
+bkCells.forEach(c=>{
+  c.contentEditable="plaintext-only"; if(c.contentEditable!=="plaintext-only") c.contentEditable="true";
+  c.spellcheck=false;
+  c.addEventListener("input",()=>{ if(!state.back||typeof state.back!=="object") state.back={}; state.back[c.dataset.bk]=c.innerText.replace(/\n$/,""); persist(); });
+});
+{ const _fill=fillForm; fillForm=function(){ _fill(); applyBack(); }; }
+
+let side="front";
+const sideBtns=$$("#sides [data-side]");
+function setSide(v){
+  if(v===side) return;
+  side=v;
+  const show=v==="back"?paper2:paper, hide=v==="back"?paper:paper2;
+  hide.classList.add("off"); show.classList.remove("off");
+  show.classList.remove("flipIn"); void show.offsetWidth; show.classList.add("flipIn");
+  sideBtns.forEach(b=>b.classList.toggle("on",b.dataset.side===v));
+  $("#sidePrev").disabled=v==="front"; $("#sideNext").disabled=v==="back";
+  try{ sessionStorage.setItem("kashf-side",v); }catch(e){}
+  applyZoom();
+}
+sideBtns.forEach(b=>b.onclick=()=>setSide(b.dataset.side));
+$("#sidePrev").onclick=()=>setSide("front");
+$("#sideNext").onclick=()=>setSide("back");
+$("#sidePrev").disabled=true;
+const printBack=$("#printBack");
+try{ printBack.checked=localStorage.getItem("kashf-print-back")!=="0"; }catch(e){}
+function syncPrintBack(){ document.body.classList.toggle("no-back-print",!printBack.checked); }
+printBack.onchange=()=>{ try{ localStorage.setItem("kashf-print-back",printBack.checked?"1":"0"); }catch(e){} syncPrintBack(); };
+syncPrintBack();
+[paper,paper2].forEach(p=>p.addEventListener("animationend",e=>{ if(e.animationName==="flipIn") p.classList.remove("flipIn"); }));
+
 /* ---------- boot ---------- */
 load(); fillForm(); applyZoom(); spy();
+try{ if(sessionStorage.getItem("kashf-side")==="back") setSide("back"); }catch(e){}
 setTimeout(()=>paper.classList.add("ready"),2100);
 addEventListener("load",()=>{spy();setTimeout(spy,1500);});
 document.fonts && document.fonts.ready.then(applyZoom);

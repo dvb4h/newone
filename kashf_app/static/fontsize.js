@@ -2,8 +2,14 @@
    يُحفظ في المتصفح لكل استمارة على حدة (ومع الورقة في المحفوظات)، ويظهر في الطباعة. */
 (function () {
   "use strict";
-  const paper = document.getElementById("paper");
-  if (!paper) return;
+  // كل أوراق الاستمارة (الوجه، والظهر إن وُجد)
+  const sheets = [...document.querySelectorAll(".paper")];
+  if (!sheets.length) return;
+  const elOf = (n) => (n.nodeType === 1 ? n : n.parentElement);
+  const sheetOf = (n) => { const e = n && elOf(n); return e ? e.closest(".paper") : null; };
+  const inSheets = (n) => !!sheetOf(n);
+  const normalizeAll = () => sheets.forEach((s) => s.normalize());
+  const $all = (sel) => [...document.querySelectorAll(sel)].filter((e) => inSheets(e));
   const STORE = "kashf-fontsizes:" + location.pathname;
   const MIN = 6, MAX = 48;
   const PRESETS = [9, 10, 11, 12, 13, 14, 16, 18, 20, 24];
@@ -13,7 +19,7 @@
   ];
 
   // rules: {t:"k", key, size?, color?}          حقل بيانات كامل (data-k)
-  //        {t:"w", path, s, e, size?, color?}   نص ثابت ملفوف بـ span
+  //        {t:"w", pg?, path, s, e, size?, color?}   نص ثابت ملفوف بـ span (pg = رقم الورقة، 0 = الوجه)
   let rules = [];
   try { rules = JSON.parse(localStorage.getItem(STORE) || "[]"); } catch (e) { rules = []; }
   if (!Array.isArray(rules)) rules = [];
@@ -30,14 +36,14 @@
   const staticKids = (el) => [...el.children].filter((c) => !isSkip(c));
   function pathOf(el) {
     const p = [];
-    while (el && el !== paper) {
+    while (el && !el.classList.contains("paper")) {
       if (!isFs(el)) p.unshift(staticKids(el.parentElement).indexOf(el));
       el = el.parentElement;
     }
     return p;
   }
-  function elAt(path) {
-    let el = paper;
+  function elAt(path, pg) {
+    let el = sheets[pg || 0];
     for (const i of path) { el = el && staticKids(el)[i]; }
     return el || null;
   }
@@ -87,7 +93,7 @@
     else el.style.removeProperty("color");
   }
   function applyKey(rule) {
-    paper.querySelectorAll(`[data-k="${CSS.escape(rule.key)}"]`).forEach((el) => styleEl(el, rule));
+    $all(`[data-k="${CSS.escape(rule.key)}"]`).forEach((el) => styleEl(el, rule));
   }
   function wrap(range, rule, idx) {
     const span = document.createElement("span");
@@ -101,20 +107,20 @@
       if (rule.size) { inner.style.fontSize = ""; inner.style.lineHeight = ""; }
       if (rule.color) inner.style.color = "";
     });
-    paper.normalize();
+    normalizeAll();
     return span;
   }
   function applyWrap(rule, idx) {
-    const root = elAt(rule.path);
+    const root = elAt(rule.path, rule.pg);
     if (!root) return;
     const r = rangeAt(root, rule.s, rule.e);
     if (r && !r.collapsed) wrap(r, rule, idx);
   }
   const refreshMeta = () => { try { if (typeof meta === "function") meta(); } catch (e) {} };
   function rebuild() {
-    paper.querySelectorAll(".fs-w").forEach((sp) => sp.replaceWith(...sp.childNodes));
-    paper.querySelectorAll("[data-k]").forEach((el) => styleEl(el, {}));
-    paper.normalize();
+    $all(".fs-w").forEach((sp) => sp.replaceWith(...sp.childNodes));
+    $all("[data-k]").forEach((el) => styleEl(el, {}));
+    normalizeAll();
     rules.forEach((r, i) => (r.t === "k" ? applyKey(r) : applyWrap(r, i)));
     refreshMeta();
   }
@@ -127,12 +133,11 @@
   }
 
   /* ---------- تحويل التحديد إلى قاعدة ---------- */
-  const elOf = (n) => (n.nodeType === 1 ? n : n.parentElement);
   function keysIn(range) {
     const keys = new Set();
     const own = elOf(range.commonAncestorContainer).closest("[data-k]");
-    if (own && paper.contains(own)) keys.add(own.dataset.k);
-    paper.querySelectorAll("[data-k]").forEach((el) => { if (range.intersectsNode(el) && el.textContent.trim()) keys.add(el.dataset.k); });
+    if (own && inSheets(own)) keys.add(own.dataset.k);
+    $all("[data-k]").forEach((el) => { if (range.intersectsNode(el) && el.textContent.trim()) keys.add(el.dataset.k); });
     return [...keys];
   }
   function hasStaticText(range) {
@@ -149,7 +154,8 @@
     while (isFs(el)) el = el.parentElement;
     if (["TR", "TBODY", "TABLE", "THEAD"].includes(el.tagName)) return null;
     if (el.closest("tr.x")) return null;                     // أسطر مضافة ديناميكياً
-    return paper.contains(el) && el !== paper ? el : null;
+    const sh = el.closest(".paper");
+    return sh && el !== sh ? el : null;
   }
 
   let touched = [];   // القواعد التي تأثرت بآخر عملية (لإعادة التحديد)
@@ -175,19 +181,21 @@
         return;
       }
       const path = pathOf(root);
+      const pg = Math.max(0, sheets.indexOf(root.closest(".paper")));
       const s = offsetOf(root, range.startContainer, range.startOffset);
       const e = offsetOf(root, range.endContainer, range.endOffset);
       if (s < 0 || e <= s) return;
       if (clearing) {
-        rules.forEach((r) => { if (r && r.t === "w" && r.path.join() === path.join() && r.s < e && r.e > s) merge(r, patch); });
+        rules.forEach((r) => { if (r && r.t === "w" && (r.pg || 0) === pg && r.path.join() === path.join() && r.s < e && r.e > s) merge(r, patch); });
       } else {
-        const rule = merge({ t: "w", path, s, e }, patch);
+        const rule = merge(pg ? { t: "w", pg, path, s, e } : { t: "w", path, s, e }, patch);
         rules.push(rule);
         touched.push(rule);
       }
     } else if (!keysIn(range).length) {
       // تحديد يتجاوز عدة خلايا: طبّق على النص الثابت في كل خلية متقاطعة
-      paper.querySelectorAll("td,th").forEach((td) => {
+      const sh = sheetOf(range.commonAncestorContainer);
+      if (sh) sh.querySelectorAll("td,th").forEach((td) => {
         if (!range.intersectsNode(td) || td.closest("tr.x") || td.querySelector("td")) return;
         const r = document.createRange();
         r.selectNodeContents(td);
@@ -208,8 +216,8 @@
     touched.forEach((r) => {
       const i = rules.indexOf(r);
       if (i < 0) return;
-      if (r.t === "w") els.push(...paper.querySelectorAll(`.fs-w[data-fsi="${i}"]`));
-      else els.push(...[...paper.querySelectorAll(`[data-k="${CSS.escape(r.key)}"]`)].filter((e) => e.textContent.trim()));
+      if (r.t === "w") els.push(...$all(`.fs-w[data-fsi="${i}"]`));
+      else els.push(...$all(`[data-k="${CSS.escape(r.key)}"]`).filter((e) => e.textContent.trim()));
     });
     if (!els.length) return null;
     els.sort((a, b) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
@@ -228,8 +236,8 @@
   /* ---------- القائمة ---------- */
   const css = document.createElement("style");
   css.textContent = `
-  #paper{-webkit-user-select:text;user-select:text}
-  #paper ::selection{background:rgba(212,165,78,.45)}
+  .paper{-webkit-user-select:text;user-select:text}
+  .paper ::selection{background:rgba(212,165,78,.45)}
   .fsm{position:fixed;z-index:9999;width:252px;padding:10px;border-radius:14px;background:#15181e;color:#eceef1;
     border:1px solid rgba(255,255,255,.14);box-shadow:0 18px 50px rgba(0,0,0,.55);font:13px "IBM Plex Sans Arabic",Tahoma,sans-serif;
     direction:rtl;opacity:0;transform:scale(.96) translateY(-4px);transform-origin:top right;transition:opacity .12s,transform .12s;pointer-events:none}
@@ -299,7 +307,7 @@
     const sel = getSelection();
     if (!sel.rangeCount || sel.isCollapsed) return null;
     const r = sel.getRangeAt(0);
-    return paper.contains(r.commonAncestorContainer) && r.toString().trim() ? r : null;
+    return inSheets(r.commonAncestorContainer) && r.toString().trim() ? r : null;
   }
   const toHex = (c) => {
     const m = String(c).match(/\d+/g);
@@ -363,7 +371,7 @@
     if ("color" in patch) markColor(patch.color, !patch.color);
   }
 
-  paper.addEventListener("contextmenu", (e) => {
+  const onContext = (e) => {
     const r = selRange();
     const box = e.target.closest && e.target.closest(".tb");
     const tb = TB();
@@ -376,7 +384,8 @@
     if (r) { e.preventDefault(); open(e.clientX, e.clientY, r); return; }
     if (tb && tb.onContext(e)) return;
     toast("حدّد كلمة أو نصاً أولاً، ثم اضغط كلك يمين");
-  });
+  };
+  sheets.forEach((sh) => sh.addEventListener("contextmenu", onContext));
   // الأجهزة اللمسية: افتح القائمة بعد التحديد مباشرة
   if (matchMedia("(pointer:coarse)").matches) {
     let t;
