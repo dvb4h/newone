@@ -459,8 +459,9 @@ table.bk tr.b .ed{min-height:55mm}
       </section>
 
       <section class="sec" id="s3" style="--i:2">
-        <h2><span class="bx"><svg class="ic"><use href="#i-truck"/></svg></span><span>المركبات<small>رقم المركبة ومرورها والسيل</small></span><span class="cnt"></span></h2>
+        <h2><span class="bx"><svg class="ic"><use href="#i-truck"/></svg></span><span>المركبات<small>السائق ورقم المركبة والسيل</small></span><span class="cnt"></span></h2>
         <div class="grid">
+          <label class="f full"><input name="driver" placeholder=" "><span class="lb">اسم السائق</span><span class="ok"><svg class="ic"><use href="#i-check"/></svg></span></label>
           <label class="f full"><input name="car" class="num" placeholder=" "><span class="lb">رقم المركبة ومرورها</span><span class="ok"><svg class="ic"><use href="#i-check"/></svg></span></label>
           <label class="f full"><input name="seal" class="num" placeholder=" "><span class="lb">رقم السيل</span><span class="ok"><svg class="ic"><use href="#i-check"/></svg></span></label>
         </div>
@@ -504,7 +505,7 @@ table.bk tr.b .ed{min-height:55mm}
         <div class="two rv" style="--d:2">
           <table class="k A"><tbody>
             <tr><td class="g">الشركة المرسل اليها</td><td><span data-k="company"></span></td></tr>
-            <tr><td class="g">اسم السائق</td><td></td></tr>
+            <tr><td class="g">اسم السائق</td><td><span data-k="driver"></span></td></tr>
             <tr><td class="g">رقم المركبة ومرورها</td><td><span data-k="car"></span></td></tr>
             <tr><td class="g">الوزن / العدد</td><td><span data-k="tons"></span></td></tr>
             <tr><td class="g">المنشأ</td><td><span data-k="origin"></span></td></tr>
@@ -598,10 +599,10 @@ const DEFAULTS = {
   date:"", procedure:"2601038187", material:"غاز النيتروجين", tons:"20", origin:"الكويت",
   invoice:"2328-2026", certificate:"260125553-1577",
   labels:{}, back:{}, refNo:"", refDate:"", certDate:"", invDate:"", usd:"", duty:"",
-  car:"", seal:"",
+  driver:"", car:"", seal:"",
   rows:[{rl:"",rv:"BA20113318",ll:"",lv:""},{rl:"",rv:"",ll:"",lv:""}]
 };
-const FIELDS = ["company","office","declNo","agent","date","procedure","material","tons","origin","invoice","certificate","refNo","refDate","certDate","invDate","usd","duty","car","seal"];
+const FIELDS = ["company","office","declNo","agent","date","procedure","material","tons","origin","invoice","certificate","refNo","refDate","certDate","invDate","usd","duty","driver","car","seal"];
 const KEEP = ["company","office","agent","labels"];
 const KEY = "customs-form-model2-v1";
 const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
@@ -871,7 +872,7 @@ paper2.querySelectorAll("table.bk td").forEach(td=>td.addEventListener("mousedow
 }));
 const cl=$$("#paper .cbox .lab"); addLab("material",cl[0]); addLab("procedure",cl[1]);
 const labDef=labEls.map(e=>e.textContent.trim());
-const FORM_LAB=new Set(["company","car","tons","origin","declNo","date","office","seal","agent","certificate","certDate","invoice","invDate","usd","duty","refNo","refDate","material","procedure"]);
+const FORM_LAB=new Set(["company","driver","car","tons","origin","declNo","date","office","seal","agent","certificate","certDate","invoice","invDate","usd","duty","refNo","refDate","material","procedure"]);
 function syncFormLabel(i){
   const k=labKeys[i]; if(!FORM_LAB.has(k)) return;
   const el=f.elements[k]; if(!el) return;
